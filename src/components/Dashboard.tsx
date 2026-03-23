@@ -155,7 +155,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Input Section */}
           <div className="lg:col-span-2 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -215,41 +215,67 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
               ))}
             </div>
 
-            <div className="flex flex-wrap justify-center gap-4 pt-4">
-              <button
-                onClick={calculateScore}
-                disabled={isCalculating}
-                className="group relative flex items-center gap-2 bg-primary text-secondary px-8 py-4 rounded-2xl font-bold shadow-lg hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden"
+            {/* Definitions Section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
               >
-                {isCalculating ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  >
-                    <Calculator className="w-5 h-5" />
-                  </motion.div>
-                ) : (
-                  <Calculator className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                )}
-                <span>Calculer le score</span>
-                
-                {isCalculating && (
-                  <motion.div 
-                    className="absolute bottom-0 left-0 h-1 bg-emerald-500"
-                    initial={{ width: 0 }}
-                    animate={{ width: "100%" }}
-                    transition={{ duration: 0.6 }}
-                  />
-                )}
-              </button>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 bg-orange-50 rounded-lg">
+                    <Eye className="w-3.5 h-3.5 text-4" />
+                  </div>
+                  <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-secondary">Posts</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Volume total de publications. Mesure votre <span className="font-bold text-secondary">présence active</span> et la fréquence d'occupation de l'espace numérique.
+                  <span className="block mt-2 pt-2 border-t border-slate-50 text-[10px] italic">
+                    Pondéré par le coefficient <span className="font-bold text-4">α (Alpha)</span> après normalisation.
+                  </span>
+                </p>
+              </motion.div>
+              
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 bg-amber-50 rounded-lg">
+                    <MessageSquare className="w-3.5 h-3.5 text-6" />
+                  </div>
+                  <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-secondary">Interactions</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Engagement cumulé (likes, partages, commentaires). Reflète la <span className="font-bold text-secondary">résonance</span> et l'intérêt généré par vos messages.
+                  <span className="block mt-2 pt-2 border-t border-slate-50 text-[10px] italic">
+                    Pondéré par le coefficient <span className="font-bold text-6">β (Beta)</span> après normalisation.
+                  </span>
+                </p>
+              </motion.div>
 
-              <button
-                onClick={resetMetrics}
-                className="flex items-center gap-2 bg-white text-slate-500 px-6 py-4 rounded-2xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 hover:text-secondary active:scale-95 transition-all"
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
               >
-                <RotateCcw className="w-5 h-5" />
-                <span>Réinitialiser</span>
-              </button>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 bg-emerald-50 rounded-lg">
+                    <TrendingUp className="w-3.5 h-3.5 text-5" />
+                  </div>
+                  <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-secondary">Portée</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Audience unique potentielle. Indique la <span className="font-bold text-secondary">visibilité</span> globale et l'étendue de la diffusion de vos contenus.
+                  <span className="block mt-2 pt-2 border-t border-slate-50 text-[10px] italic">
+                    Pondéré par le coefficient <span className="font-bold text-5">γ (Gamma)</span> après normalisation.
+                  </span>
+                </p>
+              </motion.div>
             </div>
 
             <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
@@ -337,7 +363,45 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
             </div>
           </div>
 
-            <div className="bg-secondary p-6 rounded-3xl shadow-2xl border border-secondary flex flex-col h-[350px] text-white sticky top-8">
+          <div className="lg:col-span-1 space-y-6 sticky top-24 self-start h-fit">
+            <div className="flex gap-2">
+              <button
+                onClick={calculateScore}
+                disabled={isCalculating}
+                className="group relative flex-1 flex items-center justify-center gap-2 bg-primary text-secondary py-3.5 rounded-xl font-black uppercase tracking-wider shadow-lg hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden text-[10px]"
+              >
+                {isCalculating ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                  >
+                    <Calculator className="w-4 h-4" />
+                  </motion.div>
+                ) : (
+                  <Calculator className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                )}
+                <span>Calculer</span>
+                
+                {isCalculating && (
+                  <motion.div 
+                    className="absolute bottom-0 left-0 h-1 bg-emerald-500"
+                    initial={{ width: 0 }}
+                    animate={{ width: "100%" }}
+                    transition={{ duration: 0.6 }}
+                  />
+                )}
+              </button>
+
+              <button
+                onClick={resetMetrics}
+                className="flex items-center justify-center gap-2 bg-white text-slate-400 px-4 py-3.5 rounded-xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 hover:text-secondary active:scale-[0.98] transition-all text-[10px] uppercase tracking-wider"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Réinitialiser</span>
+              </button>
+            </div>
+
+            <div className="bg-secondary p-6 rounded-3xl shadow-2xl border border-secondary flex flex-col h-[350px] text-white">
               <div className="flex-1 flex items-center justify-center">
                 <motion.div
                   key="score"
@@ -400,6 +464,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                 </div>
               </motion.div>
             </div>
+          </div>
         </div>
       </div>
     </div>

@@ -114,19 +114,6 @@ Format de réponse attendu :
               </div>
               <span className="text-[10px] font-bold text-secondary">{requestCount} requêtes / session</span>
             </div>
-            <div className="w-px h-6 bg-slate-100" />
-            <a 
-              href="https://aistudio.google.com/app/plan_information" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-secondary transition-colors group relative"
-              title="Voir les quotas officiels"
-            >
-              <Lightbulb size={14} />
-              <span className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-secondary text-white text-[9px] rounded-lg shadow-xl z-50">
-                L'offre gratuite est limitée à ~15 requêtes/minute. Cliquez pour voir votre console.
-              </span>
-            </a>
           </div>
 
           <button 
@@ -197,7 +184,7 @@ Format de réponse attendu :
         </div>
 
         {/* Right: Two Stacked Boxes */}
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 sticky top-24 self-start h-fit">
           {/* Top: Correcteur Box */}
           <div className="h-[234px] bg-white rounded-3xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
             <div className="px-6 py-3 border-b border-slate-100 bg-orange-50/30 flex items-center justify-between">
