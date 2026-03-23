@@ -11,3 +11,10 @@
   
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
+
+.sigma-container {
+  height: 450px !important;
+  min-height: 450px !important;
+  width: 100% !important;
+  display: block !important;
+}

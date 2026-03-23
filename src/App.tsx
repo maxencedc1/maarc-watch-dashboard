@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Correcteur from './components/Correcteur';
+import Cartographie from './components/Cartographie';
 import logo from './Logo.png';
 import { ChevronDown } from 'lucide-react';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'indices' | 'correcteur'>('correcteur');
+  const [currentView, setCurrentView] = useState<'indices' | 'correcteur' | 'cartographie'>('correcteur');
   const [activeTab, setActiveTab] = useState('visibilite');
   const [scrolled, setScrolled] = useState(false);
 
@@ -51,6 +52,18 @@ export default function App() {
               Correcteur
             </button>
 
+            {/* Cartographie Button */}
+            <button
+              onClick={() => setCurrentView('cartographie')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                currentView === 'cartographie'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Cartographie
+            </button>
+
             {/* Dropdown Menu */}
             <div className="relative group">
               <button 
@@ -85,27 +98,34 @@ export default function App() {
             </div>
           </div>
           
-          <div className="h-10">
+          <a 
+            href="https://www.maarc.fr/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="h-10 block hover:opacity-80 transition-opacity"
+          >
             <img 
               src={logo} 
               alt="Maarc" 
               className="h-full object-contain" 
               referrerPolicy="no-referrer" 
             />
-          </div>
+          </a>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 py-4">
+      <main className="flex-1 py-4 pb-12">
         {currentView === 'indices' ? (
           tabs.map((tab) => (
             <div key={tab.id} className={activeTab === tab.id ? 'block' : 'hidden'}>
               <Dashboard title={tab.title} />
             </div>
           ))
-        ) : (
+        ) : currentView === 'correcteur' ? (
           <Correcteur />
+        ) : (
+          <Cartographie />
         )}
       </main>
     </div>
