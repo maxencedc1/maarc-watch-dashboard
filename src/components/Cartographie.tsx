@@ -1,57 +1,144 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { SigmaContainer, useLoadGraph, useSigma } from '@react-sigma/core';
 import Graph from 'graphology';
 import { parse } from 'graphology-gexf';
+import Papa from 'papaparse';
 import louvain from 'graphology-communities-louvain';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
 import EdgeCurveProgram from "@sigma/edge-curve";
-import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2 } from 'lucide-react';
+import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+interface Publication {
+  id: string;
+  author: string;
+  normalizedAuthor: string;
+  content: string;
+  date: string;
+  url?: string;
+  sentiment?: number;
+  reach?: number;
+  engagement?: number;
+  retweets?: number;
+  followers?: number;
+  [key: string]: any;
+}
+
 // Sigma controller to handle graph updates and interactions
-const SigmaController: React.FC<{ graph: Graph }> = ({ graph }) => {
+const SigmaController: React.FC<{ 
+  graph: Graph;
+  hoveredNode: string | null;
+  setHoveredNode: (node: string | null) => void;
+  selectedNode: string | null;
+  setSelectedNode: (node: string | null | ((prev: string | null) => string | null)) => void;
+}> = ({ graph, hoveredNode, setHoveredNode, selectedNode, setSelectedNode }) => {
   const loadGraph = useLoadGraph();
   const sigma = useSigma();
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+
+  // Identify top 15 nodes by size for default label display
+  const topNodes = useMemo(() => {
+    if (!graph || graph.order === 0) return new Set<string>();
+    return new Set(
+      graph.nodes()
+        .sort((a, b) => (graph.getNodeAttribute(b, 'size') || 0) - (graph.getNodeAttribute(a, 'size') || 0))
+        .slice(0, 15)
+    );
+  }, [graph]);
+
+  // Pre-calculate top 10 nodes for each community to strictly limit labels on hover
+  const topCommunityNodes = useMemo(() => {
+    if (!graph || graph.order === 0) return {} as Record<number, Set<string>>;
+    const communityGroups: Record<number, string[]> = {};
+    
+    graph.forEachNode((node, attr) => {
+      const comm = attr.community;
+      if (comm === undefined) return;
+      if (!communityGroups[comm]) communityGroups[comm] = [];
+      communityGroups[comm].push(node);
+    });
+
+    const result: Record<number, Set<string>> = {};
+    Object.entries(communityGroups).forEach(([comm, nodes]) => {
+      const sortedNodes = nodes
+        .sort((a, b) => (graph.getNodeAttribute(b, 'size') || 0) - (graph.getNodeAttribute(a, 'size') || 0))
+        .slice(0, 10); // Limit to top 10 per community
+      result[Number(comm)] = new Set(sortedNodes);
+    });
+    return result;
+  }, [graph]);
+
+  // Pre-calculate community adjacency to identify neighboring clusters
+  const communityAdjacency = useMemo(() => {
+    if (!graph || graph.order === 0) return {} as Record<number, Set<number>>;
+    const adjacency: Record<number, Set<number>> = {};
+    
+    graph.forEachEdge((edge, attr, source, target) => {
+      const sourceComm = graph.getNodeAttribute(source, 'community');
+      const targetComm = graph.getNodeAttribute(target, 'community');
+      if (sourceComm !== undefined && targetComm !== undefined && sourceComm !== targetComm) {
+        if (!adjacency[sourceComm]) adjacency[sourceComm] = new Set();
+        if (!adjacency[targetComm]) adjacency[targetComm] = new Set();
+        adjacency[sourceComm].add(targetComm);
+        adjacency[targetComm].add(sourceComm);
+      }
+    });
+    return adjacency;
+  }, [graph]);
+
+  // Calculate active context: visible nodes and top 10 labels when a node/community is active
+  const activeContext = useMemo(() => {
+    const activeNode = hoveredNode || selectedNode;
+    if (!activeNode || !graph) return null;
+
+    const activeCommunity = graph.getNodeAttribute(activeNode, 'community');
+    const visibleNodes = new Set<string>();
+    const connectedNeighborNodes = new Set<string>();
+
+    // 1. All nodes in the active community are visible
+    graph.forEachNode((node, attr) => {
+      if (attr.community === activeCommunity) {
+        visibleNodes.add(node);
+      }
+    });
+
+    // 2. Nodes in other communities are visible ONLY if directly connected to the active community
+    graph.forEachEdge((edge, attr, source, target) => {
+      const sourceComm = graph.getNodeAttribute(source, 'community');
+      const targetComm = graph.getNodeAttribute(target, 'community');
+      
+      if (sourceComm === activeCommunity && targetComm !== activeCommunity) {
+        visibleNodes.add(target);
+        connectedNeighborNodes.add(target);
+      } else if (targetComm === activeCommunity && sourceComm !== activeCommunity) {
+        visibleNodes.add(source);
+        connectedNeighborNodes.add(source);
+      }
+    });
+
+    // 3. Pick top 10 labels from the entire visible set
+    const topLabels = new Set(
+      Array.from(visibleNodes)
+        .sort((a, b) => (graph.getNodeAttribute(b, 'size') || 0) - (graph.getNodeAttribute(a, 'size') || 0))
+        .slice(0, 10)
+    );
+
+    // Ensure the active node itself is always labeled if it's not in the top 10
+    topLabels.add(activeNode);
+
+    return { visibleNodes, topLabels, activeCommunity, connectedNeighborNodes };
+  }, [graph, hoveredNode, selectedNode]);
 
   useEffect(() => {
-    // Handle click on node to focus on community
+    // Handle click on node to highlight community
     const onClickNode = (e: { node: string }) => {
       const node = e.node;
-      const community = graph.getNodeAttribute(node, 'community');
-      
-      // Find all nodes in the same community
-      const communityNodes = graph.filterNodes((n) => graph.getNodeAttribute(n, 'community') === community);
-      
-      if (communityNodes.length > 0) {
-        // Calculate bounding box of the community in graph coordinates
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        communityNodes.forEach((n) => {
-          const x = graph.getNodeAttribute(n, 'x');
-          const y = graph.getNodeAttribute(n, 'y');
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
-        });
+      setSelectedNode((prev) => (prev === node ? null : node));
+    };
 
-        const width = maxX - minX;
-        const height = maxY - minY;
-        const centerX = minX + width / 2;
-        const centerY = minY + height / 2;
-
-        // Focus on the community
-        // Sigma camera coordinates are in graph space
-        sigma.getCamera().animate(
-          { 
-            x: centerX, 
-            y: centerY, 
-            ratio: Math.max(0.05, Math.min(0.4, 800 / Math.max(width, height, 1))) 
-          },
-          { duration: 1000 }
-        );
-      }
+    // Handle click on stage to clear selection
+    const onClickStage = () => {
+      setSelectedNode(null);
     };
 
     // Handle hover events
@@ -63,65 +150,122 @@ const SigmaController: React.FC<{ graph: Graph }> = ({ graph }) => {
     };
 
     sigma.on('clickNode', onClickNode);
+    sigma.on('clickStage', onClickStage);
     sigma.on('enterNode', onEnterNode);
     sigma.on('leaveNode', onLeaveNode);
 
+    // Disable mouse wheel zoom
+    const mouseCaptor = sigma.getMouseCaptor();
+    const preventWheel = (e: any) => {
+      if (e.original) {
+        e.original.preventDefault();
+        e.original.stopPropagation();
+      }
+    };
+    const preventDoubleClick = (e: any) => {
+      if (e.original) {
+        e.original.preventDefault();
+        e.original.stopPropagation();
+      }
+    };
+    
+    mouseCaptor.on('wheel', preventWheel);
+    mouseCaptor.on('doubleClick', preventDoubleClick);
+
     return () => {
       sigma.off('clickNode', onClickNode);
+      sigma.off('clickStage', onClickStage);
       sigma.off('enterNode', onEnterNode);
       sigma.off('leaveNode', onLeaveNode);
+      mouseCaptor.off('wheel', preventWheel);
+      mouseCaptor.off('doubleClick', preventDoubleClick);
     };
   }, [sigma, graph]);
 
-  // Apply node and edge reducers for hover effect
+  // Apply node and edge reducers for highlight effect
   useEffect(() => {
+    const activeNode = hoveredNode || selectedNode;
+
     sigma.setSetting("nodeReducer", (node, data) => {
       const res = { ...data };
-      if (hoveredNode) {
-        const hoveredCommunity = graph.getNodeAttribute(hoveredNode, 'community');
+      const labelSize = graph.getNodeAttribute(node, 'labelSize') || 12;
+      
+      if (activeContext) {
+        const { visibleNodes, topLabels, activeCommunity } = activeContext;
+        const isVisible = visibleNodes.has(node);
         const nodeCommunity = graph.getNodeAttribute(node, 'community');
-        const isSameCommunity = nodeCommunity === hoveredCommunity;
-        const isNeighbor = graph.hasEdge(node, hoveredNode) || graph.hasEdge(hoveredNode, node);
+        const isSameCommunity = nodeCommunity === activeCommunity;
 
-        if (node === hoveredNode || isNeighbor || isSameCommunity) {
-          res.label = data.label;
-          res.zIndex = 1;
-          res.labelColor = "#ffffff";
-          res.opacity = 1;
+        if (isVisible) {
+          res.opacity = isSameCommunity ? 1 : 0.8;
+          res.color = graph.getNodeAttribute(node, 'color');
+          
+          if (topLabels.has(node)) {
+            res.label = data.label;
+            res.zIndex = 100;
+            res.labelColor = "#000000";
+            res.labelWeight = "800";
+            res.labelSize = labelSize;
+          } else {
+            res.label = "";
+          }
         } else {
           res.label = "";
-          res.color = "#222222";
+          res.color = "#f1f5f9"; // Very light gray for faded nodes
           res.opacity = 0.05;
-          res.labelColor = "rgba(255, 255, 255, 0.1)";
+          res.labelColor = "rgba(0, 0, 0, 0.02)";
         }
       } else {
-        res.labelColor = "#ffffff";
+        res.labelColor = "#000000";
         res.opacity = 1;
+        res.labelWeight = "900";
+        
+        // Default state: exactly top 15 nodes labeled
+        if (topNodes.has(node)) {
+          res.label = data.label;
+          res.zIndex = 10;
+          res.labelSize = labelSize;
+        } else {
+          res.label = "";
+        }
       }
       return res;
     });
 
     sigma.setSetting("edgeReducer", (edge, data) => {
       const res = { ...data };
-      if (hoveredNode) {
-        if (graph.hasExtremity(edge, hoveredNode)) {
+      if (activeContext) {
+        const { activeCommunity, visibleNodes } = activeContext;
+        const source = graph.source(edge);
+        const target = graph.target(edge);
+        const sourceComm = graph.getNodeAttribute(source, 'community');
+        const targetComm = graph.getNodeAttribute(target, 'community');
+        
+        const isInternal = sourceComm === activeCommunity && targetComm === activeCommunity;
+        const isToVisibleNeighbor = (sourceComm === activeCommunity && visibleNodes.has(target)) ||
+                                    (targetComm === activeCommunity && visibleNodes.has(source));
+        const activeNode = hoveredNode || selectedNode;
+        const isConnectedToActive = source === activeNode || target === activeNode;
+
+        if (isConnectedToActive || isInternal || isToVisibleNeighbor) {
           res.color = data.color;
-          res.size = 1.5;
-          res.opacity = 0.8;
+          res.size = data.size * 2;
+          res.opacity = isInternal ? 0.6 : 0.3;
         } else {
-          res.opacity = 0;
-          res.size = 0;
+          res.opacity = 0.01;
+          res.color = "#f1f5f9";
+          res.size = 0.05;
         }
       } else {
         res.color = data.color;
-        res.opacity = 0.02; 
-        res.size = 0.1;
+        res.opacity = 0.04; // Even fainter edges by default
+        res.size = data.size;
       }
       return res;
     });
 
     sigma.refresh();
-  }, [sigma, graph, hoveredNode]);
+  }, [sigma, graph, hoveredNode, selectedNode]);
 
   useEffect(() => {
     const container = sigma.getContainer();
@@ -196,29 +340,30 @@ const GraphControls: React.FC = () => {
   };
 
   return (
-    <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
+    <div className="absolute bottom-4 right-4 z-10">
       <div 
         style={{ backgroundColor: '#FBC33C' }}
-        className="p-1 rounded-lg shadow-2xl flex flex-col gap-1"
+        className="rounded-xl shadow-2xl flex flex-col items-center justify-between w-[52px] h-[140px] py-1"
       >
         <button 
           onClick={zoomIn}
-          className="p-2 hover:bg-white/20 rounded-md text-slate-900 transition-colors" 
+          className="p-2 hover:bg-white/20 rounded-lg text-slate-900 transition-colors" 
           title="Zoom In"
         >
           <ZoomIn size={20} />
         </button>
+        <div className="w-8 h-px bg-white/40" />
         <button 
           onClick={zoomOut}
-          className="p-2 hover:bg-white/20 rounded-md text-slate-900 transition-colors" 
+          className="p-2 hover:bg-white/20 rounded-lg text-slate-900 transition-colors" 
           title="Zoom Out"
         >
           <ZoomOut size={20} />
         </button>
-        <div className="h-px bg-white/40 mx-1" />
+        <div className="w-8 h-px bg-white/40" />
         <button 
           onClick={resetView}
-          className="p-2 hover:bg-white/20 rounded-md text-slate-900 transition-colors" 
+          className="p-2 hover:bg-white/20 rounded-lg text-slate-900 transition-colors" 
           title="Reset View"
         >
           <Maximize size={20} />
@@ -236,7 +381,13 @@ export default function Cartographie() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [communityNames, setCommunityNames] = useState<Record<number, string>>({});
   const [editingCommunity, setEditingCommunity] = useState<number | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [isCsvDragging, setIsCsvDragging] = useState(false);
+  const [isGexfDragging, setIsGexfDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Debug log to check container height
@@ -253,134 +404,207 @@ export default function Cartographie() {
     return () => clearTimeout(timer);
   }, [graph]);
 
+  const finalizeGraph = useCallback((newGraph: Graph) => {
+    try {
+      if (newGraph.order === 0) {
+        throw new Error('Le graphe ne contient aucun noeud.');
+      }
+
+      // 1. Ensure all nodes have positions and basic attributes
+      newGraph.forEachNode((node, attr) => {
+        if (attr.x === undefined || attr.y === undefined || isNaN(attr.x) || isNaN(attr.y) || (attr.x === 0 && attr.y === 0)) {
+          newGraph.setNodeAttribute(node, 'x', Math.random() * 1000);
+          newGraph.setNodeAttribute(node, 'y', Math.random() * 1000);
+        }
+        
+        const degree = newGraph.degree(node);
+        const currentSize = attr.size || (3 + Math.pow(degree, 0.7) * 2.5);
+        newGraph.setNodeAttribute(node, 'size', Math.max(currentSize, 4));
+        
+        if (!attr.label) {
+          newGraph.setNodeAttribute(node, 'label', node);
+        }
+      });
+
+      // 2. Run Louvain clustering with weight awareness
+      // We use a slightly higher resolution to find more distinct "factions"
+      const communities = louvain(newGraph, {
+        resolution: 1.2,
+        getEdgeWeight: (edge) => newGraph.getEdgeAttribute(edge, 'weight') || 1
+      });
+      const clusterCount = new Set(Object.values(communities)).size;
+      
+      const colors = [
+        '#E91E63', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', 
+        '#00BCD4', '#FFEB3B', '#795548', '#607D8B', '#FF5722',
+        '#3F51B5', '#009688', '#CDDC39', '#FFC107', '#FF4081'
+      ];
+
+      newGraph.forEachNode((node) => {
+        const community = communities[node];
+        newGraph.setNodeAttribute(node, 'community', community);
+        newGraph.setNodeAttribute(node, 'color', colors[community % colors.length]);
+        const size = newGraph.getNodeAttribute(node, 'size') || 5;
+        const labelSize = Math.max(12, Math.min(32, 10 + (size - 4) * 1.8));
+        newGraph.setNodeAttribute(node, 'labelSize', labelSize);
+      });
+
+      // 3. Set edge colors and sizes
+      newGraph.forEachEdge((edge, attr, source, target) => {
+        const sourceColor = newGraph.getNodeAttribute(source, 'color');
+        newGraph.setEdgeAttribute(edge, 'color', sourceColor);
+        const weight = attr.weight || 1;
+        newGraph.setEdgeAttribute(edge, 'size', Math.max(0.05, Math.min(weight * 0.1, 0.5)));
+      });
+
+      // 4. Run ForceAtlas2 layout optimized for cluster separation (Visibrain-style)
+      forceAtlas2.assign(newGraph, {
+        iterations: 2000,
+        settings: {
+          gravity: 1.2, // Increased gravity to pull clusters together and reduce empty space
+          scalingRatio: 8.0, // Balanced scaling to separate clusters without creating huge gaps
+          strongGravityMode: true, // Strong gravity helps in forming more cohesive global structure
+          barnesHutOptimize: true,
+          linLogMode: true, // Essential for the "cloud" clustering effect
+          adjustSizes: true, // Prevent node overlap
+          outboundAttractionDistribution: true // Hubs attract more, pushing them to cluster centers
+        }
+      });
+
+      // 5. Final check for bounds
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      newGraph.forEachNode((_, attr) => {
+        minX = Math.min(minX, attr.x);
+        maxX = Math.max(maxX, attr.x);
+        minY = Math.min(minY, attr.y);
+        maxY = Math.max(maxY, attr.y);
+      });
+
+      const width = maxX - minX;
+      const height = maxY - minY;
+
+      if (width < 1 || height < 1 || isNaN(width) || isNaN(height)) {
+        circular.assign(newGraph, { scale: 500 });
+      }
+
+      setGraph(newGraph);
+      setStats({
+        nodes: newGraph.order,
+        edges: newGraph.size,
+        clusters: clusterCount
+      });
+
+      const names: Record<number, string> = {};
+      for (let i = 0; i < clusterCount; i++) {
+        names[i] = `Communauté ${i + 1}`;
+      }
+      setCommunityNames(names);
+      setIsProcessing(false);
+    } catch (err) {
+      console.error('Error finalizing graph:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors du traitement du graphe.');
+      setIsProcessing(false);
+    }
+  }, []);
+
   const processGexf = useCallback((content: string) => {
     setIsProcessing(true);
     setError(null);
     
-    // Use a small timeout to allow UI to show loading state if needed
     setTimeout(() => {
       try {
         const newGraph = parse(Graph, content);
-
-        if (newGraph.order === 0) {
-          throw new Error('Le fichier GEXF ne contient aucun noeud.');
-        }
-
-        // 1. Ensure all nodes have positions and basic attributes
-        // Start with a random layout to avoid nodes being perfectly aligned
-        newGraph.forEachNode((node, attr) => {
-          // Use existing positions if they look valid, otherwise random
-          if (attr.x === undefined || attr.y === undefined || isNaN(attr.x) || isNaN(attr.y) || (attr.x === 0 && attr.y === 0)) {
-            newGraph.setNodeAttribute(node, 'x', Math.random() * 1000);
-            newGraph.setNodeAttribute(node, 'y', Math.random() * 1000);
-          }
-          
-          // Ensure size is visible
-          const currentSize = attr.size || 5;
-          newGraph.setNodeAttribute(node, 'size', Math.max(currentSize, 5));
-          
-          // Ensure label exists
-          if (!attr.label) {
-            newGraph.setNodeAttribute(node, 'label', node);
-          }
-        });
-
-        // 2. Run Louvain clustering
-        const communities = louvain(newGraph);
-        const clusterCount = new Set(Object.values(communities)).size;
-        
-        // Color palette for clusters - Vibrant like the example
-        const colors = [
-          '#FF00FF', // Magenta/Pink
-          '#00FFFF', // Cyan/Blue
-          '#00FF00', // Green
-          '#FF4500', // Orange/Red
-          '#FFFF00', // Yellow
-          '#8A2BE2', // BlueViolet
-          '#0000FF', // Blue
-          '#FF1493', // DeepPink
-          '#ADFF2F', // GreenYellow
-          '#FFA500'  // Orange
-        ];
-
-        newGraph.forEachNode((node) => {
-          const community = communities[node];
-          newGraph.setNodeAttribute(node, 'community', community);
-          newGraph.setNodeAttribute(node, 'color', colors[community % colors.length]);
-          
-          // Increase node size scaling for more drama like the example
-          const size = newGraph.getNodeAttribute(node, 'size') || 5;
-          newGraph.setNodeAttribute(node, 'size', Math.max(4, size * 2));
-        });
-
-        // 3. Set edge colors and sizes
-        newGraph.forEachEdge((edge, attr, source, target) => {
-          const sourceColor = newGraph.getNodeAttribute(source, 'color');
-          
-          // Use the source node's color (community color) for the link
-          newGraph.setEdgeAttribute(edge, 'color', sourceColor);
-          
-          // Edge size based on weight (intensity of relation)
-          const weight = attr.weight || 1;
-          // Scale weight to a reasonable size range (0.3 to 5)
-          // Thinner edges with source color creates a "glow" effect when dense
-          newGraph.setEdgeAttribute(edge, 'size', Math.max(0.3, Math.min(weight * 0.8, 5)));
-        });
-
-        // 4. Run ForceAtlas2 layout to organize the graph
-        // Adjusting parameters to get more organic clusters like the example
-        forceAtlas2.assign(newGraph, {
-          iterations: 300,
-          settings: {
-            gravity: 0.8,
-            scalingRatio: 15,
-            strongGravityMode: true,
-            barnesHutOptimize: true,
-            linLogMode: true
-          }
-        });
-
-        // 4. Final check: ensure nodes are not all at the same position or in a line
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        newGraph.forEachNode((_, attr) => {
-          minX = Math.min(minX, attr.x);
-          maxX = Math.max(maxX, attr.x);
-          minY = Math.min(minY, attr.y);
-          maxY = Math.max(maxY, attr.y);
-        });
-
-        const width = maxX - minX;
-        const height = maxY - minY;
-        console.log("Graph bounds:", { minX, maxX, minY, maxY, width, height });
-
-        // If the graph is too squashed (like a line), force a circular layout
-        if (width < 1 || height < 1 || isNaN(width) || isNaN(height)) {
-          console.warn("Graph is too squashed, applying circular layout fallback");
-          circular.assign(newGraph, { scale: 500 });
-        }
-
-        setGraph(newGraph);
-        setStats({
-          nodes: newGraph.order,
-          edges: newGraph.size,
-          clusters: clusterCount
-        });
-
-        // Initialize community names
-        const names: Record<number, string> = {};
-        for (let i = 0; i < clusterCount; i++) {
-          names[i] = `Communauté ${i + 1}`;
-        }
-        setCommunityNames(names);
-        
-        setIsProcessing(false);
+        finalizeGraph(newGraph);
       } catch (err) {
         console.error('Error parsing GEXF:', err);
         setError(err instanceof Error ? err.message : 'Erreur lors de la lecture du fichier GEXF.');
         setIsProcessing(false);
       }
     }, 50);
+  }, [finalizeGraph]);
+
+  const processCsv = useCallback((content: string) => {
+    setIsProcessing(true);
+    setError(null);
+
+    Papa.parse(content, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        try {
+          const data = results.data as any[];
+          if (data.length === 0) throw new Error('Le fichier CSV est vide.');
+
+          // Mapping Talkwalker columns to our Publication interface
+          const newPubs: Publication[] = data.map((row, index) => {
+            const rawAuthor = row['Id'] || row['screen name'] || row['extra_author_attributes.name'] || row['Author'] || 'Inconnu';
+            return {
+              id: `pub-${index}`,
+              author: rawAuthor,
+              normalizedAuthor: String(rawAuthor).toLowerCase().trim().replace(/^@/, ''),
+              content: row['text'] || row['content'] || row['Snippet'] || row['Title'] || '',
+              date: row['published'] || '',
+              url: row['permalink'] || row['url'] || '',
+              engagement: Number(row['engagement']) || 0,
+              retweets: Number(row['retweets']) || 0,
+              followers: Number(row['followers']) || 0,
+              ...row
+            };
+          }).sort((a, b) => (b.retweets || 0) - (a.retweets || 0));
+
+          setPublications(newPubs);
+          setIsProcessing(false);
+        } catch (err: any) {
+          setError(err.message || 'Erreur lors de la lecture du CSV.');
+          setIsProcessing(false);
+        }
+      },
+      error: () => {
+        setError('Erreur lors de la lecture du fichier CSV.');
+        setIsProcessing(false);
+      }
+    });
   }, []);
+
+  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        processCsv(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const onCsvDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsCsvDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        processCsv(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const onGexfDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsGexfDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file && (file.name.endsWith('.gexf') || file.type === 'text/xml')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        processGexf(content);
+      };
+      reader.readAsText(file);
+    }
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -425,207 +649,316 @@ export default function Cartographie() {
     setError(null);
     setCommunityNames({});
     setEditingCommunity(null);
+    setPublications([]);
   };
 
-  const handleCommunityNameChange = (id: number, newName: string) => {
-    setCommunityNames(prev => ({ ...prev, [id]: newName }));
-  };
+  const filteredPublications = useMemo(() => {
+    if (!selectedNode || !graph) return publications;
+    
+    const nodeAttr = graph.getNodeAttributes(selectedNode);
+    const possibleIds = new Set([
+      String(selectedNode).toLowerCase().trim().replace(/^@/, ''),
+      String(nodeAttr.label || '').toLowerCase().trim().replace(/^@/, ''),
+      String(nodeAttr.displayName || '').toLowerCase().trim().replace(/^@/, ''),
+      String(nodeAttr.screen_name || '').toLowerCase().trim().replace(/^@/, '')
+    ].filter(Boolean));
+    
+    return publications.filter(p => possibleIds.has(p.normalizedAuthor));
+  }, [publications, selectedNode, graph]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+    <div className="max-w-[1600px] mx-auto px-4 flex flex-col gap-6 h-auto pb-6">
+      <div className="flex items-center justify-between shrink-0 py-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Network className="text-secondary" />
-            Cartographie de Réseau
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2 tracking-tight text-secondary">
+            <Network size={24} />
+            Cartographie
           </h1>
-          <p className="text-slate-500 text-sm">Visualisez vos données d'influence et identifiez les clusters (format GEXF)</p>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Identifiez rapidement les communautés qui s'expriment sur vos sujets</p>
         </div>
         
-        {graph && (
+        <div className="flex items-center gap-3">
+          {/* Compact GEXF Upload */}
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-secondary transition-colors group relative shadow-sm">
+            <Network size={16} className={graph ? 'text-emerald-500' : 'text-slate-400'} />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-slate-900 leading-none">Réseau GEXF</span>
+              <span className="text-[9px] text-slate-400 leading-none mt-0.5">{graph ? 'Chargé' : 'Attente...'}</span>
+            </div>
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".gexf" className="hidden" />
+            <button onClick={() => fileInputRef.current?.click()} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          </div>
+
+          {/* Compact CSV Upload */}
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-secondary transition-colors group relative shadow-sm">
+            <FileText size={16} className={publications.length > 0 ? 'text-emerald-500' : 'text-slate-400'} />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-slate-900 leading-none">Publications CSV</span>
+              <span className="text-[9px] text-slate-400 leading-none mt-0.5">{publications.length > 0 ? `${publications.length} posts` : 'Attente...'}</span>
+            </div>
+            <input type="file" ref={csvInputRef} onChange={handleCsvUpload} accept=".csv" className="hidden" />
+            <button onClick={() => csvInputRef.current?.click()} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          </div>
+
           <button 
             onClick={clearGraph}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            disabled={!graph && publications.length === 0}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all border ${
+              (graph || publications.length > 0) 
+                ? 'text-red-500 bg-red-50 border-red-100 hover:bg-red-100' 
+                : 'text-slate-300 bg-slate-50 border-slate-100 cursor-not-allowed'
+            }`}
           >
-            <Trash2 size={16} />
+            <Trash2 size={14} />
             Réinitialiser
           </button>
-        )}
+        </div>
       </div>
 
-      {!graph ? (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`max-w-4xl mx-auto w-full min-h-[450px] h-[450px] border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all ${
-            isDragging ? 'border-secondary bg-secondary/5' : 'border-slate-200 bg-white'
-          }`}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-        >
-          {isProcessing ? (
-            <div className="flex flex-col items-center">
-              <RefreshCw className="w-12 h-12 text-secondary animate-spin mb-4" />
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Traitement des données...</h3>
-              <p className="text-slate-500">Calcul des clusters et de la mise en page</p>
+      <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
+        {/* Left Column: Map (Expanded) */}
+        <div className="col-span-8 relative bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-0 h-[400px]">
+          {!graph ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+              <Network size={48} className="text-slate-200 mb-4" />
+              <h3 className="text-lg font-bold text-slate-400">En attente du fichier GEXF...</h3>
+              <p className="text-slate-400 text-sm max-w-xs mt-2">Importez la structure de votre réseau pour commencer l'analyse.</p>
             </div>
           ) : (
             <>
-              <div className="bg-slate-50 p-6 rounded-full mb-4">
-                <Upload className={`w-12 h-12 ${isDragging ? 'text-secondary' : 'text-slate-400'}`} />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Glissez votre fichier GEXF ici</h3>
-              <p className="text-slate-500 mb-6 text-center max-w-md">
-                Importez vos données issues de Visibrain ou Gephi pour générer instantanément une cartographie interactive avec détection de communautés.
-              </p>
-              
-              <input 
-                type="file" 
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".gexf"
-                className="hidden"
-              />
-              
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="px-6 py-3 bg-secondary text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95"
-              >
-                Sélectionner un fichier
-              </button>
-
-              {error && (
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mt-4 text-red-500 text-sm font-medium"
+              {/* Stats Overlay */}
+              <div className="absolute top-4 left-4 z-10">
+                <div 
+                  style={{ backgroundColor: '#FBC33C' }}
+                  className="rounded-xl shadow-2xl flex flex-col items-center justify-between w-[52px] h-[140px] py-3"
                 >
-                  {error}
-                </motion.p>
-              )}
-
-              <div className="mt-12 flex gap-8 text-slate-400">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
-                  <Check size={14} className="text-emerald-500" />
-                  Format GEXF
-                </div>
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
-                  <Check size={14} className="text-emerald-500" />
-                  Clustering Louvain
-                </div>
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
-                  <Check size={14} className="text-emerald-500" />
-                  ForceAtlas2
-                </div>
-              </div>
-            </>
-          )}
-        </motion.div>
-      ) : (
-        <div className="max-w-4xl mx-auto w-full relative bg-secondary rounded-2xl border border-slate-800 shadow-xl overflow-hidden flex flex-col">
-          {/* Stats Overlay */}
-          <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-            <div 
-              style={{ backgroundColor: '#FBC33C' }}
-              className="p-2 rounded-xl shadow-2xl w-[180px]"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-center flex-1">
-                  <div className="text-[9px] text-slate-900/70 font-bold uppercase tracking-tighter">Noeuds</div>
-                  <div className="text-sm font-black text-slate-900">{stats?.nodes.toLocaleString()}</div>
-                </div>
-                <div className="w-px h-5 bg-white/40" />
-                <div className="text-center flex-1">
-                  <div className="text-[9px] text-slate-900/70 font-bold uppercase tracking-tighter">Liens</div>
-                  <div className="text-sm font-black text-slate-900">{stats?.edges.toLocaleString()}</div>
-                </div>
-                <div className="w-px h-5 bg-white/40" />
-                <div className="text-center flex-1">
-                  <div className="text-[9px] text-slate-900/70 font-bold uppercase tracking-tighter">Clusters</div>
-                  <div className="text-sm font-black text-slate-900">{stats?.clusters}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Graph Container */}
-          <div className="w-full bg-secondary relative border-t border-slate-800 overflow-hidden flex-1 min-h-[450px] h-[450px]">
-            <SigmaContainer 
-              key={graph ? `graph-${graph.order}-${graph.size}` : 'empty'}
-              className="sigma-container"
-              style={{ height: '100%', width: '100%', minHeight: '450px' }}
-              settings={{
-                allowInvalidContainer: true,
-                labelFont: 'Inter, sans-serif',
-                labelSize: 13,
-                labelWeight: '700',
-                labelColor: { attribute: "labelColor" },
-                defaultNodeColor: '#3b82f6',
-                labelRenderedSizeThreshold: 10,
-                hideEdgesOnMove: true,
-                renderLabels: true,
-                labelDensity: 0.1,
-                labelGridCellSize: 60,
-                edgeProgramClasses: {
-                  curved: EdgeCurveProgram,
-                },
-                defaultEdgeType: "curved",
-              }}
-            >
-              <SigmaController graph={graph} />
-              
-              {/* Legend Overlay */}
-              <div className="absolute bottom-4 left-4 z-10">
-                <div className="bg-slate-100/95 backdrop-blur-sm border border-slate-200 p-2.5 rounded-xl shadow-xl w-[180px]">
-                  <h4 className="text-[10px] font-bold text-slate-900 mb-1.5 flex items-center gap-1">
-                    <Info size={10} className="text-slate-500" />
-                    Légende des clusters
-                  </h4>
-                  <div className="space-y-1 max-h-[150px] overflow-y-auto pr-1.5 custom-scrollbar-light">
-                    {Array.from({ length: Math.min(stats?.clusters || 0, 20) }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-2 group">
-                        <div 
-                          className="w-3 h-3 rounded-full shrink-0" 
-                          style={{ backgroundColor: [
-                            '#FF00FF', '#00FFFF', '#00FF00', '#FF4500', '#FFFF00', 
-                            '#8A2BE2', '#0000FF', '#FF1493', '#ADFF2F', '#FFA500'
-                          ][i % 10] }} 
-                        />
-                        {editingCommunity === i ? (
-                          <input
-                            autoFocus
-                            className="text-[10px] font-medium text-slate-900 bg-white border border-slate-200 rounded px-1 w-full focus:ring-1 focus:ring-secondary outline-none"
-                            value={communityNames[i] || `Communauté ${i + 1}`}
-                            onChange={(e) => handleCommunityNameChange(i, e.target.value)}
-                            onBlur={() => setEditingCommunity(null)}
-                            onKeyDown={(e) => e.key === 'Enter' && setEditingCommunity(null)}
-                          />
-                        ) : (
-                          <div 
-                            className="flex items-center justify-between w-full cursor-pointer hover:bg-slate-200/50 rounded px-1 py-0.5 transition-colors"
-                            onClick={() => setEditingCommunity(i)}
-                          >
-                            <span className="text-[10px] font-medium text-slate-700 truncate">
-                              {communityNames[i] || `Communauté ${i + 1}`}
-                            </span>
-                            <Edit2 size={8} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {(stats?.clusters || 0) > 20 && (
-                      <div className="text-[10px] text-slate-400 italic">+{stats!.clusters - 20} autres...</div>
-                    )}
+                  <div className="text-center">
+                    <div className="text-[8px] text-slate-900/70 font-bold uppercase tracking-tighter leading-none mb-1">Noeuds</div>
+                    <div className="text-xs font-black text-slate-900 leading-none">{stats?.nodes.toLocaleString()}</div>
+                  </div>
+                  <div className="w-8 h-px bg-white/40" />
+                  <div className="text-center">
+                    <div className="text-[8px] text-slate-900/70 font-bold uppercase tracking-tighter leading-none mb-1">Liens</div>
+                    <div className="text-xs font-black text-slate-900 leading-none">{stats?.edges.toLocaleString()}</div>
+                  </div>
+                  <div className="w-8 h-px bg-white/40" />
+                  <div className="text-center">
+                    <div className="text-[8px] text-slate-900/70 font-bold uppercase tracking-tighter leading-none mb-1">Clusters</div>
+                    <div className="text-xs font-black text-slate-900 leading-none">{stats?.clusters}</div>
                   </div>
                 </div>
               </div>
 
-              <GraphControls />
-            </SigmaContainer>
+              {/* Graph Container */}
+              <div className="flex-1 w-full bg-white relative overflow-hidden">
+                <SigmaContainer 
+                  key={graph ? `graph-${graph.order}-${graph.size}` : 'empty'}
+                  className="sigma-container"
+                  style={{ height: '100%', width: '100%' }}
+                  settings={{
+                    allowInvalidContainer: true,
+                    labelFont: 'Inter, sans-serif',
+                    labelSize: 12,
+                    labelWeight: '900',
+                    labelColor: { color: "#000000" },
+                    defaultNodeColor: '#3b82f6',
+                    labelRenderedSizeThreshold: 0,
+                    hideEdgesOnMove: true,
+                    renderLabels: true,
+                    labelDensity: 1,
+                    labelGridCellSize: 10,
+                    edgeProgramClasses: {
+                      curved: EdgeCurveProgram,
+                    },
+                    defaultEdgeType: "curved",
+                  }}
+                >
+                  <SigmaController 
+                    graph={graph} 
+                    hoveredNode={hoveredNode}
+                    setHoveredNode={setHoveredNode}
+                    selectedNode={selectedNode}
+                    setSelectedNode={setSelectedNode}
+                  />
+                  <GraphControls />
+                </SigmaContainer>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Right Column: Publications (Styled) */}
+        <div className="col-span-4 bg-slate-50/50 rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-0 h-[400px] overflow-hidden">
+          <div className="p-5 bg-white border-b border-slate-100 shrink-0">
+            <div className="flex items-center justify-between mb-1.5">
+              <h2 className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
+                <MessageSquare size={14} className="text-secondary" />
+                Flux de Publications
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black bg-secondary/10 text-secondary px-2.5 py-1 rounded-lg">
+                  {filteredPublications.length}
+                </span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">
+              {selectedNode ? `Filtré : ${graph?.getNodeAttribute(selectedNode, 'label') || selectedNode}` : 'Toutes les sources'}
+            </p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            {selectedNode && graph && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-4 p-4 bg-white rounded-2xl border-2 border-secondary/20 shadow-sm relative overflow-hidden group"
+              >
+                <div className="absolute top-0 right-0 p-2">
+                  <button 
+                    onClick={() => setSelectedNode(null)}
+                    className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-3 mb-3">
+                  <div 
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg rotate-3 group-hover:rotate-0 transition-transform"
+                    style={{ backgroundColor: graph.getNodeAttribute(selectedNode, 'color') || '#FBC33C' }}
+                  >
+                    {(graph.getNodeAttribute(selectedNode, 'label') || selectedNode).charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 leading-tight">
+                      {graph.getNodeAttribute(selectedNode, 'label') || selectedNode}
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Communauté {graph.getNodeAttribute(selectedNode, 'community') + 1}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center justify-between">
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Followers</div>
+                    <div className="text-xs font-black text-slate-900">
+                      {graph.getNodeAttribute(selectedNode, 'followers')?.toLocaleString() || 
+                       graph.getNodeAttribute(selectedNode, 'follower_count')?.toLocaleString() || 
+                       graph.getNodeAttribute(selectedNode, 'extra_author_attributes.followers_count')?.toLocaleString() || 'N/A'}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Description du compte</div>
+                    <div className="text-[10px] text-slate-600 leading-relaxed italic line-clamp-4">
+                      {graph.getNodeAttribute(selectedNode, 'description') || 
+                       graph.getNodeAttribute(selectedNode, 'bio') || 
+                       graph.getNodeAttribute(selectedNode, 'extra_author_attributes.description') || 
+                       'Aucune description disponible.'}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            <AnimatePresence mode="popLayout">
+              {filteredPublications.length > 0 ? (
+                filteredPublications.map((pub) => (
+                  <motion.div
+                    key={pub.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer group hover:shadow-md ${
+                      selectedNode && (pub.normalizedAuthor === String(selectedNode).toLowerCase().trim().replace(/^@/, '') || 
+                      pub.normalizedAuthor === String(graph?.getNodeAttribute(selectedNode, 'label') || '').toLowerCase().trim().replace(/^@/, ''))
+                        ? 'border-secondary bg-white shadow-lg ring-1 ring-secondary/20'
+                        : 'border-slate-100 bg-white hover:border-slate-200'
+                    }`}
+                    onClick={() => {
+                      // Select node in graph by author name
+                      if (graph) {
+                        const normAuthor = pub.normalizedAuthor;
+                        const nodeId = graph.nodes().find(n => {
+                          const attr = graph.getNodeAttributes(n);
+                          const nId = String(n).toLowerCase().trim().replace(/^@/, '');
+                          const nLabel = String(attr.label || '').toLowerCase().trim().replace(/^@/, '');
+                          const nDisplay = String(attr.displayName || '').toLowerCase().trim().replace(/^@/, '');
+                          const nScreen = String(attr.screen_name || '').toLowerCase().trim().replace(/^@/, '');
+                          
+                          return nId === normAuthor || nLabel === normAuthor || nDisplay === normAuthor || nScreen === normAuthor;
+                        });
+                        if (nodeId) setSelectedNode(nodeId);
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-black text-slate-900 truncate group-hover:text-secondary transition-colors">
+                            {pub.author}
+                          </span>
+                          {pub.followers !== undefined && pub.followers > 0 && (
+                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">
+                              {pub.followers >= 1000 ? `${(pub.followers / 1000).toFixed(1)}k` : pub.followers} flw
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                          <Calendar size={10} className="text-slate-300" />
+                          {pub.date}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 line-clamp-4 mb-4 leading-relaxed font-medium">
+                      {pub.content}
+                    </p>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+                      <div className="flex items-center gap-4">
+                        {pub.retweets !== undefined && (
+                          <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary">
+                            <RefreshCw size={12} strokeWidth={3} />
+                            {pub.retweets}
+                          </div>
+                        )}
+                        {pub.engagement !== undefined && pub.engagement > 0 && (
+                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            Eng: {pub.engagement}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {pub.url && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(pub.url, '_blank');
+                          }}
+                          className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 hover:text-secondary transition-all uppercase tracking-widest group/btn"
+                        >
+                          <span className="opacity-0 group-hover/btn:opacity-100 transition-opacity">Source</span>
+                          <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center group-hover/btn:bg-secondary/10 group-hover/btn:text-secondary transition-colors">
+                            <ExternalLink size={12} />
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <MessageSquare size={32} className="text-slate-100 mb-3" />
+                  <p className="text-xs font-bold text-slate-300 uppercase tracking-widest">Aucune publication</p>
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      )}
+      </div>
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
