@@ -24,6 +24,7 @@
     "graphology-gexf": "^0.13.2",
     "graphology-layout": "^0.6.1",
     "graphology-layout-forceatlas2": "^0.10.1",
+    "graphology-metrics": "^2.4.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

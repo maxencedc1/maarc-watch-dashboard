@@ -7,7 +7,7 @@ import louvain from 'graphology-communities-louvain';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
 import EdgeCurveProgram from "@sigma/edge-curve";
-import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink } from 'lucide-react';
+import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink, Layers, Eye, EyeOff, Share2, Filter, Plus, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Publication {
@@ -32,7 +32,9 @@ const SigmaController: React.FC<{
   setHoveredNode: (node: string | null) => void;
   selectedNode: string | null;
   setSelectedNode: (node: string | null | ((prev: string | null) => string | null)) => void;
-}> = ({ graph, hoveredNode, setHoveredNode, selectedNode, setSelectedNode }) => {
+  nodeSizeMultiplier: number;
+  hiddenCommunities: Set<number>;
+}> = ({ graph, hoveredNode, setHoveredNode, selectedNode, setSelectedNode, nodeSizeMultiplier, hiddenCommunities }) => {
   const loadGraph = useLoadGraph();
   const sigma = useSigma();
 
@@ -188,7 +190,22 @@ const SigmaController: React.FC<{
 
     sigma.setSetting("nodeReducer", (node, data) => {
       const res = { ...data };
+      const nodeCommunity = graph.getNodeAttribute(node, 'community');
+      const baseSize = graph.getNodeAttribute(node, 'size') || 2;
+      const finalSize = baseSize * nodeSizeMultiplier;
       const labelSize = graph.getNodeAttribute(node, 'labelSize') || 12;
+      
+      // Faded style for hidden communities
+      if (hiddenCommunities.has(nodeCommunity)) {
+        res.label = "";
+        res.color = "#f1f5f9";
+        res.opacity = 0.05;
+        res.size = finalSize;
+        res.labelColor = "rgba(0, 0, 0, 0.02)";
+        return res;
+      }
+
+      res.size = finalSize;
       
       if (activeContext) {
         const { visibleNodes, topLabels, activeCommunity } = activeContext;
@@ -234,6 +251,19 @@ const SigmaController: React.FC<{
 
     sigma.setSetting("edgeReducer", (edge, data) => {
       const res = { ...data };
+      const source = graph.source(edge);
+      const target = graph.target(edge);
+      const sourceComm = graph.getNodeAttribute(source, 'community');
+      const targetComm = graph.getNodeAttribute(target, 'community');
+
+      // Faded style if either community is hidden
+      if (hiddenCommunities.has(sourceComm) || hiddenCommunities.has(targetComm)) {
+        res.opacity = 0.01;
+        res.color = "#f1f5f9";
+        res.size = 0.05;
+        return res;
+      }
+
       if (activeContext) {
         const { activeCommunity, visibleNodes } = activeContext;
         const source = graph.source(edge);
@@ -265,7 +295,7 @@ const SigmaController: React.FC<{
     });
 
     sigma.refresh();
-  }, [sigma, graph, hoveredNode, selectedNode]);
+  }, [sigma, graph, hoveredNode, selectedNode, nodeSizeMultiplier, hiddenCommunities]);
 
   useEffect(() => {
     const container = sigma.getContainer();
@@ -311,16 +341,161 @@ const SigmaController: React.FC<{
     }
   }, [graph, loadGraph, sigma]);
 
-  // Force a refresh on every render of the controller
+  // Force a refresh when sigma instance or nodeSizeMultiplier changes
   useEffect(() => {
     sigma.refresh();
-  });
+  }, [sigma, nodeSizeMultiplier]);
 
   return null;
 };
 
+// Legend component for communities
+const Legend: React.FC<{
+  graph: Graph;
+  communityNames: Record<number, string>;
+  setCommunityNames: React.Dispatch<React.SetStateAction<Record<number, string>>>;
+  hiddenCommunities: Set<number>;
+  setHiddenCommunities: React.Dispatch<React.SetStateAction<Set<number>>>;
+}> = ({ graph, communityNames, setCommunityNames, hiddenCommunities, setHiddenCommunities }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const totalNodes = useMemo(() => graph.order, [graph]);
+
+  const communities = useMemo(() => {
+    const counts: Record<number, { count: number; color: string }> = {};
+    graph.forEachNode((node, attr) => {
+      const comm = attr.community;
+      if (comm === undefined) return;
+      if (!counts[comm]) {
+        counts[comm] = { count: 0, color: attr.color || "#ccc" };
+      }
+      counts[comm].count++;
+    });
+    return Object.entries(counts)
+      .map(([id, data]) => ({ 
+        id: Number(id), 
+        ...data,
+        percentage: ((data.count / totalNodes) * 100).toFixed(1)
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [graph, totalNodes]);
+
+  const toggleCommunity = (id: number) => {
+    setHiddenCommunities(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        // Prevent hiding all communities
+        if (next.size < communities.length - 1) {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  };
+
+  const startEditing = (id: number, name: string) => {
+    setEditingId(id);
+    setEditValue(name);
+  };
+
+  const saveName = () => {
+    if (editingId !== null) {
+      setCommunityNames(prev => ({ ...prev, [editingId]: editValue }));
+      setEditingId(null);
+    }
+  };
+
+  return (
+    <div className="absolute bottom-4 left-4 z-10 flex flex-col items-start">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="bg-white/90 backdrop-blur-sm w-[52px] h-[52px] rounded-2xl border border-slate-200 shadow-xl flex items-center justify-center hover:bg-slate-50 transition-colors"
+        title="Légende"
+      >
+        <Layers size={18} className="text-secondary" />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="bg-white/90 backdrop-blur-sm p-3 rounded-2xl border border-slate-200 shadow-2xl w-56 flex flex-col gap-2 mt-2"
+          >
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Clusters</span>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setHiddenCommunities(new Set())}
+                  className="text-[7px] font-black text-secondary hover:underline uppercase"
+                >
+                  Tous
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 max-h-[180px] overflow-y-auto custom-scrollbar pr-1">
+              {communities.map(comm => (
+                <div key={comm.id} className="flex items-center justify-between group">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <button 
+                      onClick={() => toggleCommunity(comm.id)}
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${hiddenCommunities.has(comm.id) ? 'border-slate-300' : 'border-transparent'}`}
+                      style={{ backgroundColor: hiddenCommunities.has(comm.id) ? 'transparent' : comm.color }}
+                    >
+                      {hiddenCommunities.has(comm.id) ? <EyeOff size={8} className="text-slate-400" /> : <Eye size={8} className="text-white" />}
+                    </button>
+                    
+                    {editingId === comm.id ? (
+                      <input 
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={saveName}
+                        onKeyDown={(e) => e.key === 'Enter' && saveName()}
+                        className="text-[10px] font-bold text-slate-900 bg-slate-100 px-1 rounded border-none focus:ring-1 focus:ring-secondary w-full"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                        <span 
+                          className={`text-[10px] font-bold truncate ${hiddenCommunities.has(comm.id) ? 'text-slate-300 line-through' : 'text-slate-700'}`}
+                          title={communityNames[comm.id]}
+                        >
+                          {communityNames[comm.id]}
+                        </span>
+                        <button 
+                          onClick={() => startEditing(comm.id, communityNames[comm.id])}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-secondary transition-all"
+                        >
+                          <Edit2 size={10} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                    <span className="text-[8px] font-black text-slate-300">{comm.percentage}%</span>
+                    <span className="text-[9px] font-black text-slate-400 w-6 text-right">{comm.count}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 // Controls component that lives inside SigmaContainer
-const GraphControls: React.FC = () => {
+const GraphControls: React.FC<{
+  nodeSizeMultiplier: number;
+  setNodeSizeMultiplier: (val: number) => void;
+}> = ({ nodeSizeMultiplier, setNodeSizeMultiplier }) => {
   const sigma = useSigma();
 
   const zoomIn = () => {
@@ -340,14 +515,15 @@ const GraphControls: React.FC = () => {
   };
 
   return (
-    <div className="absolute bottom-4 right-4 z-10">
+    <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-3">
+      {/* Zoom Controls */}
       <div 
         style={{ backgroundColor: '#FBC33C' }}
-        className="rounded-xl shadow-2xl flex flex-col items-center justify-between w-[52px] h-[140px] py-1"
+        className="rounded-2xl shadow-2xl flex flex-col items-center justify-between w-[52px] h-[140px] py-1"
       >
         <button 
           onClick={zoomIn}
-          className="p-2 hover:bg-white/20 rounded-lg text-slate-900 transition-colors" 
+          className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" 
           title="Zoom In"
         >
           <ZoomIn size={20} />
@@ -355,7 +531,7 @@ const GraphControls: React.FC = () => {
         <div className="w-8 h-px bg-white/40" />
         <button 
           onClick={zoomOut}
-          className="p-2 hover:bg-white/20 rounded-lg text-slate-900 transition-colors" 
+          className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" 
           title="Zoom Out"
         >
           <ZoomOut size={20} />
@@ -363,7 +539,7 @@ const GraphControls: React.FC = () => {
         <div className="w-8 h-px bg-white/40" />
         <button 
           onClick={resetView}
-          className="p-2 hover:bg-white/20 rounded-lg text-slate-900 transition-colors" 
+          className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" 
           title="Reset View"
         >
           <Maximize size={20} />
@@ -373,8 +549,39 @@ const GraphControls: React.FC = () => {
   );
 };
 
+// TopRightControls component for node size
+const TopRightControls: React.FC<{
+  nodeSizeMultiplier: number;
+  setNodeSizeMultiplier: React.Dispatch<React.SetStateAction<number>>;
+}> = ({ nodeSizeMultiplier, setNodeSizeMultiplier }) => {
+  return (
+    <div className="absolute top-4 right-4 z-10 flex flex-col items-center gap-3">
+      {/* Node Size Control */}
+      <div className="bg-white/90 backdrop-blur-sm p-2 rounded-2xl border border-slate-200 shadow-xl flex flex-col items-center gap-1 w-[52px]">
+        <div className="text-[7px] font-black text-slate-400 uppercase tracking-tighter text-center leading-none mb-1">Taille</div>
+        <button 
+          onClick={() => setNodeSizeMultiplier(prev => Math.min(prev + 0.2, 5))}
+          className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-colors"
+          title="Augmenter la taille"
+        >
+          <Plus size={16} />
+        </button>
+        <div className="text-[9px] font-black text-slate-900 leading-none py-1">{nodeSizeMultiplier.toFixed(1)}x</div>
+        <button 
+          onClick={() => setNodeSizeMultiplier(prev => Math.max(prev - 0.2, 0.1))}
+          className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-colors"
+          title="Diminuer la taille"
+        >
+          <Minus size={16} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function Cartographie() {
   const [graph, setGraph] = useState<Graph | null>(null);
+  const [graphId, setGraphId] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<{ nodes: number; edges: number; clusters: number } | null>(null);
@@ -383,6 +590,8 @@ export default function Cartographie() {
   const [editingCommunity, setEditingCommunity] = useState<number | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [nodeSizeMultiplier, setNodeSizeMultiplier] = useState(1);
+  const [hiddenCommunities, setHiddenCommunities] = useState<Set<number>>(new Set());
   const [publications, setPublications] = useState<Publication[]>([]);
   const [isCsvDragging, setIsCsvDragging] = useState(false);
   const [isGexfDragging, setIsGexfDragging] = useState(false);
@@ -449,15 +658,18 @@ export default function Cartographie() {
         newGraph.setNodeAttribute(node, 'labelSize', labelSize);
       });
 
-      // 3. Set edge colors and sizes
+      // 4. Set edge colors and sizes (with reduced opacity)
       newGraph.forEachEdge((edge, attr, source, target) => {
         const sourceColor = newGraph.getNodeAttribute(source, 'color');
-        newGraph.setEdgeAttribute(edge, 'color', sourceColor);
+        // Add opacity to the hex color (e.g., B2 for ~70% opacity)
+        const colorWithOpacity = sourceColor.length === 7 ? `${sourceColor}B2` : sourceColor;
+        newGraph.setEdgeAttribute(edge, 'color', colorWithOpacity);
         const weight = attr.weight || 1;
-        newGraph.setEdgeAttribute(edge, 'size', Math.max(0.05, Math.min(weight * 0.1, 0.5)));
+        // Vary size slightly based on weight: base 0.15, max 0.8
+        newGraph.setEdgeAttribute(edge, 'size', Math.max(0.15, Math.min(0.15 + (weight * 0.1), 0.8)));
       });
 
-      // 4. Run ForceAtlas2 layout optimized for cluster separation (Visibrain-style)
+      // 5. Run ForceAtlas2 layout optimized for cluster separation (Visibrain-style)
       forceAtlas2.assign(newGraph, {
         iterations: 2000,
         settings: {
@@ -473,12 +685,14 @@ export default function Cartographie() {
 
       // 5. Final check for bounds
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      newGraph.forEachNode((_, attr) => {
+      newGraph.forEachNode((node, attr) => {
         minX = Math.min(minX, attr.x);
         maxX = Math.max(maxX, attr.x);
         minY = Math.min(minY, attr.y);
         maxY = Math.max(maxY, attr.y);
       });
+      setGraphId(prev => prev + 1);
+      setGraph(newGraph);
 
       const width = maxX - minX;
       const height = maxY - minY;
@@ -486,6 +700,8 @@ export default function Cartographie() {
       if (width < 1 || height < 1 || isNaN(width) || isNaN(height)) {
         circular.assign(newGraph, { scale: 500 });
       }
+
+      setGraphId(prev => prev + 1);
 
       setGraph(newGraph);
       setStats({
@@ -650,6 +866,9 @@ export default function Cartographie() {
     setCommunityNames({});
     setEditingCommunity(null);
     setPublications([]);
+    setNodeSizeMultiplier(1);
+    setHiddenCommunities(new Set());
+    setGraphId(0);
   };
 
   const filteredPublications = useMemo(() => {
@@ -667,7 +886,7 @@ export default function Cartographie() {
   }, [publications, selectedNode, graph]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6 bg-slate-50/50 rounded-3xl">
+    <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6 bg-slate-50/50 rounded-2xl">
       <div className="flex flex-col sm:flex-row items-center justify-between shrink-0 px-2 gap-4">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary to-slate-700 flex items-center justify-center text-white shadow-lg shadow-secondary/20">
@@ -731,7 +950,7 @@ export default function Cartographie() {
               <div className="absolute top-4 left-4 z-10">
                 <div 
                   style={{ backgroundColor: '#FBC33C' }}
-                  className="rounded-xl shadow-2xl flex flex-col items-center justify-between w-[52px] h-[140px] py-3"
+                  className="rounded-2xl shadow-2xl flex flex-col items-center justify-between w-[52px] h-[140px] py-3"
                 >
                   <div className="text-center">
                     <div className="text-[8px] text-slate-900/70 font-bold uppercase tracking-tighter leading-none mb-1">Noeuds</div>
@@ -753,7 +972,7 @@ export default function Cartographie() {
               {/* Graph Container */}
               <div className="flex-1 w-full bg-white relative overflow-hidden">
                 <SigmaContainer 
-                  key={graph ? `graph-${graph.order}-${graph.size}` : 'empty'}
+                  key={graph ? `graph-${graphId}` : 'empty'}
                   className="sigma-container"
                   style={{ height: '100%', width: '100%' }}
                   settings={{
@@ -766,8 +985,8 @@ export default function Cartographie() {
                     labelRenderedSizeThreshold: 0,
                     hideEdgesOnMove: true,
                     renderLabels: true,
-                    labelDensity: 1,
-                    labelGridCellSize: 10,
+                    labelDensity: 0.07,
+                    labelGridCellSize: 60,
                     edgeProgramClasses: {
                       curved: EdgeCurveProgram,
                     },
@@ -780,8 +999,24 @@ export default function Cartographie() {
                     setHoveredNode={setHoveredNode}
                     selectedNode={selectedNode}
                     setSelectedNode={setSelectedNode}
+                    nodeSizeMultiplier={nodeSizeMultiplier}
+                    hiddenCommunities={hiddenCommunities}
                   />
-                  <GraphControls />
+                  <GraphControls 
+                    nodeSizeMultiplier={nodeSizeMultiplier} 
+                    setNodeSizeMultiplier={setNodeSizeMultiplier}
+                  />
+                  <TopRightControls 
+                    nodeSizeMultiplier={nodeSizeMultiplier}
+                    setNodeSizeMultiplier={setNodeSizeMultiplier}
+                  />
+                  <Legend 
+                    graph={graph}
+                    communityNames={communityNames}
+                    setCommunityNames={setCommunityNames}
+                    hiddenCommunities={hiddenCommunities}
+                    setHiddenCommunities={setHiddenCommunities}
+                  />
                 </SigmaContainer>
               </div>
             </>
