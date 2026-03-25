@@ -16,7 +16,8 @@ import {
   Info,
   Play,
   RotateCcw,
-  Building2
+  Building2,
+  Trash2
 } from 'lucide-react';
 
 interface PlatformMetrics {
@@ -142,20 +143,21 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
   ] as const;
 
   return (
-    <div className="min-h-screen bg-white p-4 md:p-8 font-sans text-secondary">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-4 relative">
-          <div className="flex-1">
-            <h1 className="text-4xl font-black tracking-tight text-secondary uppercase">{title}</h1>
-            <p className="text-slate-500 mt-2 font-medium">Développé par la cellule de veille Maarc Watch</p>
+    <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6 bg-slate-50/50 rounded-3xl">
+      {/* Header */}
+      <header className="flex flex-col sm:flex-row items-center justify-between shrink-0 px-2 gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary to-slate-700 flex items-center justify-center text-white shadow-lg shadow-secondary/20">
+            <TrendingUp size={24} />
           </div>
-          <div className="flex items-center gap-6">
-            {/* Logo moved to TopBar */}
+          <div>
+            <h1 className="text-2xl font-black text-secondary tracking-tight">{title} <span className="text-primary">Maarc</span></h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Développé par la cellule de veille Maarc Watch</p>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Input Section */}
           <div className="lg:col-span-2 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -278,22 +280,22 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
               </motion.div>
             </div>
 
-            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <div className="p-6 bg-secondary rounded-2xl border border-slate-700 space-y-4 shadow-xl">
               <div className="flex items-start gap-4">
-                <Info className="w-5 h-5 text-secondary mt-1" />
-                <div className="text-xs text-slate-600 leading-relaxed space-y-6 flex-1">
+                <Info className="w-5 h-5 text-primary mt-1" />
+                <div className="text-xs text-slate-300 leading-relaxed space-y-6 flex-1">
                   <div className="space-y-3">
-                    <p className="font-bold text-7 uppercase tracking-widest text-[10px]">Pondération de la Formule</p>
-                    <div className="flex flex-wrap items-center gap-3 font-mono text-sm bg-white p-3 rounded-lg border border-slate-200">
+                    <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">Pondération de la Formule</p>
+                    <div className="flex flex-wrap items-center gap-3 font-mono text-sm bg-slate-800 p-3 rounded-lg border border-slate-700">
                       <div className="flex items-center gap-3">
                         <input 
                           type="number" 
                           step="0.1"
                           value={params.alpha} 
                           onChange={(e) => handleParamChange('alpha', e.target.value)}
-                          className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-center text-secondary font-bold text-base focus:ring-2 focus:ring-4/20 outline-none transition-all"
+                          className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-center text-white font-bold text-base focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
-                        <span className="text-slate-400">×</span>
+                        <span className="text-slate-500">×</span>
                         <span className="text-4 font-black">Score M</span>
                       </div>
                       <span className="text-primary font-bold">+</span>
@@ -303,9 +305,9 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                           step="0.1"
                           value={params.beta} 
                           onChange={(e) => handleParamChange('beta', e.target.value)}
-                          className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-center text-secondary font-bold text-base focus:ring-2 focus:ring-6/20 outline-none transition-all"
+                          className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-center text-white font-bold text-base focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
-                        <span className="text-slate-400">×</span>
+                        <span className="text-slate-500">×</span>
                         <span className="text-6 font-black">Score I</span>
                       </div>
                       <span className="text-primary font-bold">+</span>
@@ -315,47 +317,47 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                           step="0.1"
                           value={params.gamma} 
                           onChange={(e) => handleParamChange('gamma', e.target.value)}
-                          className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-center text-secondary font-bold text-base focus:ring-2 focus:ring-5/20 outline-none transition-all"
+                          className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-center text-white font-bold text-base focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
-                        <span className="text-slate-400">×</span>
+                        <span className="text-slate-500">×</span>
                         <span className="text-5 font-black">Score P</span>
                       </div>
                     </div>
                   </div>
                   
                   <div className="space-y-3">
-                    <p className="font-bold text-7 uppercase tracking-widest text-[10px]">Seuils de Normalisation (Max)</p>
+                    <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">Seuils de Normalisation (Max)</p>
                     <ul className="grid grid-cols-3 gap-3">
-                      <li className="flex flex-col gap-2 bg-white p-3 rounded-xl border border-slate-200">
+                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
                         <span className="font-bold text-4 text-[10px] uppercase tracking-wider">M (Mentions)</span>
                         <input 
                           type="text" 
                           value={formatNumber(params.mpMax)} 
                           onChange={(e) => setParams(p => ({ ...p, mpMax: parseFormattedNumber(e.target.value) }))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-right text-slate-900 font-mono font-bold text-xs focus:ring-2 focus:ring-4/20 outline-none transition-all"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-right text-white font-mono font-bold text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                       </li>
-                      <li className="flex flex-col gap-2 bg-white p-3 rounded-xl border border-slate-200">
+                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
                         <span className="font-bold text-6 text-[10px] uppercase tracking-wider">I (Interactions)</span>
                         <input 
                           type="text" 
                           value={formatNumber(params.eMax)} 
                           onChange={(e) => setParams(p => ({ ...p, eMax: parseFormattedNumber(e.target.value) }))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-right text-slate-900 font-mono font-bold text-xs focus:ring-2 focus:ring-6/20 outline-none transition-all"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-right text-white font-mono font-bold text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                       </li>
-                      <li className="flex flex-col gap-2 bg-white p-3 rounded-xl border border-slate-200">
+                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
                         <span className="font-bold text-5 text-[10px] uppercase tracking-wider">P (Portée)</span>
                         <input 
                           type="text" 
                           value={formatNumber(params.pMax)} 
                           onChange={(e) => setParams(p => ({ ...p, pMax: parseFormattedNumber(e.target.value) }))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-right text-slate-900 font-mono font-bold text-xs focus:ring-2 focus:ring-5/20 outline-none transition-all"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-right text-white font-mono font-bold text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                       </li>
                     </ul>
                   </div>
-                  <p className="text-[10px] italic text-slate-400 border-t border-slate-200 pt-3">
+                  <p className="text-[10px] italic text-slate-500 border-t border-slate-700 pt-3">
                     Chaque indicateur est normalisé sur 100 par rapport à son seuil maximum avant l'application des coefficients de pondération.
                   </p>
                 </div>
@@ -364,42 +366,41 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
           </div>
 
           <div className="lg:col-span-1 space-y-6 sticky top-24 self-start h-fit">
-            <div className="flex gap-2">
-              <button
-                onClick={calculateScore}
-                disabled={isCalculating}
-                className="group relative flex-1 flex items-center justify-center gap-2 bg-primary text-secondary py-3.5 rounded-xl font-black uppercase tracking-wider shadow-lg hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden text-[10px]"
-              >
-                {isCalculating ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  >
-                    <Calculator className="w-4 h-4" />
-                  </motion.div>
-                ) : (
-                  <Calculator className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                )}
-                <span>Calculer</span>
-                
-                {isCalculating && (
-                  <motion.div 
-                    className="absolute bottom-0 left-0 h-1 bg-emerald-500"
-                    initial={{ width: 0 }}
-                    animate={{ width: "100%" }}
-                    transition={{ duration: 0.6 }}
-                  />
-                )}
-              </button>
+          <div className="flex gap-2">
+            <button
+              onClick={calculateScore}
+              disabled={isCalculating}
+              className="group relative flex-1 flex items-center justify-center gap-2 bg-primary text-secondary h-[42px] rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden text-[10px]"
+            >
+              {isCalculating ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                >
+                  <Calculator className="w-4 h-4" />
+                </motion.div>
+              ) : (
+                <Calculator className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              )}
+              <span>Calculer</span>
+              
+              {isCalculating && (
+                <motion.div 
+                  className="absolute bottom-0 left-0 h-1 bg-emerald-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 0.6 }}
+                />
+              )}
+            </button>
 
-              <button
-                onClick={resetMetrics}
-                className="flex items-center justify-center gap-2 bg-white text-slate-400 px-4 py-3.5 rounded-xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 hover:text-secondary active:scale-[0.98] transition-all text-[10px] uppercase tracking-wider"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Réinitialiser</span>
-              </button>
-            </div>
+            <button
+              onClick={resetMetrics}
+              className="w-[130px] flex items-center justify-center gap-2 px-4 h-[42px] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border text-red-500 bg-red-50 border-red-100 hover:bg-red-100"
+            >
+              <span>Réinitialiser</span>
+            </button>
+          </div>
 
             <div className="bg-secondary p-6 rounded-3xl shadow-2xl border border-secondary flex flex-col h-[350px] text-white">
               <div className="flex-1 flex items-center justify-center">
@@ -467,6 +468,5 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

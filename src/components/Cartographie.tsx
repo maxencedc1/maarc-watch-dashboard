@@ -667,21 +667,23 @@ export default function Cartographie() {
   }, [publications, selectedNode, graph]);
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 flex flex-col gap-6 h-auto pb-6">
-      <div className="flex items-center justify-between shrink-0 py-2">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2 tracking-tight text-secondary">
+    <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6 bg-slate-50/50 rounded-3xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between shrink-0 px-2 gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary to-slate-700 flex items-center justify-center text-white shadow-lg shadow-secondary/20">
             <Network size={24} />
-            Cartographie
-          </h1>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Identifiez rapidement les communautés qui s'expriment sur vos sujets</p>
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-secondary tracking-tight">Cartographie <span className="text-primary">Maarc</span></h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Identifiez rapidement les communautés qui s'expriment sur vos sujets</p>
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
           {/* Compact GEXF Upload */}
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-secondary transition-colors group relative shadow-sm">
+          <div className="w-[130px] flex items-center gap-2 bg-white border border-dashed border-slate-300 rounded-2xl px-4 h-[42px] hover:border-secondary transition-colors group relative shadow-sm">
             <Network size={16} className={graph ? 'text-emerald-500' : 'text-slate-400'} />
-            <div className="flex flex-col">
+            <div className="flex flex-col justify-center">
               <span className="text-[10px] font-bold text-slate-900 leading-none">Réseau GEXF</span>
               <span className="text-[9px] text-slate-400 leading-none mt-0.5">{graph ? 'Chargé' : 'Attente...'}</span>
             </div>
@@ -690,9 +692,9 @@ export default function Cartographie() {
           </div>
 
           {/* Compact CSV Upload */}
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-secondary transition-colors group relative shadow-sm">
+          <div className="w-[130px] flex items-center gap-2 bg-white border border-dashed border-slate-300 rounded-2xl px-4 h-[42px] hover:border-secondary transition-colors group relative shadow-sm">
             <FileText size={16} className={publications.length > 0 ? 'text-emerald-500' : 'text-slate-400'} />
-            <div className="flex flex-col">
+            <div className="flex flex-col justify-center">
               <span className="text-[10px] font-bold text-slate-900 leading-none">Publications CSV</span>
               <span className="text-[9px] text-slate-400 leading-none mt-0.5">{publications.length > 0 ? `${publications.length} posts` : 'Attente...'}</span>
             </div>
@@ -703,13 +705,12 @@ export default function Cartographie() {
           <button 
             onClick={clearGraph}
             disabled={!graph && publications.length === 0}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all border ${
+            className={`w-[130px] flex items-center justify-center gap-2 px-4 h-[42px] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border ${
               (graph || publications.length > 0) 
                 ? 'text-red-500 bg-red-50 border-red-100 hover:bg-red-100' 
                 : 'text-slate-300 bg-slate-50 border-slate-100 cursor-not-allowed'
             }`}
           >
-            <Trash2 size={14} />
             Réinitialiser
           </button>
         </div>
@@ -717,7 +718,7 @@ export default function Cartographie() {
 
       <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
         {/* Left Column: Map (Expanded) */}
-        <div className="col-span-8 relative bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-0 h-[400px]">
+        <div className="col-span-8 relative bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-0 h-[420px]">
           {!graph ? (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
               <Network size={48} className="text-slate-200 mb-4" />
@@ -788,7 +789,7 @@ export default function Cartographie() {
         </div>
 
         {/* Right Column: Publications (Styled) */}
-        <div className="col-span-4 bg-slate-50/50 rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-0 h-[400px] overflow-hidden">
+        <div className="col-span-4 bg-slate-50/50 rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-0 h-[420px] overflow-hidden">
           <div className="p-5 bg-white border-b border-slate-100 shrink-0">
             <div className="flex items-center justify-between mb-1.5">
               <h2 className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">

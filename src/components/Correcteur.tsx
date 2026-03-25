@@ -106,22 +106,26 @@ Format de réponse attendu :
         
         <div className="flex items-center gap-4">
           {/* Quota Indicator */}
-          <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2 rounded-2xl shadow-sm">
-            <div className="flex flex-col items-end">
+          <div className="w-[130px] flex items-center gap-3 bg-white border border-slate-200 px-4 h-[42px] rounded-2xl shadow-sm">
+            <div className="flex flex-col items-end justify-center w-full">
               <div className="flex items-center gap-1.5">
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Plan Gratuit</span>
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               </div>
-              <span className="text-[10px] font-bold text-secondary">{requestCount} requêtes / session</span>
+              <span className="text-[10px] font-bold text-secondary leading-none">{requestCount} requêtes / session</span>
             </div>
           </div>
 
           <button 
             onClick={clearAll}
-            className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-4 hover:bg-orange-50 rounded-xl transition-all font-bold text-xs uppercase tracking-widest"
+            disabled={!input && !corrections && !suggestions}
+            className={`w-[130px] flex items-center justify-center gap-2 px-4 h-[42px] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border ${
+              (input || corrections || suggestions) 
+                ? 'text-red-500 bg-red-50 border-red-100 hover:bg-red-100' 
+                : 'text-slate-300 bg-slate-50 border-slate-100 cursor-not-allowed'
+            }`}
           >
-            <Trash2 size={14} />
-            Effacer
+            Réinitialiser
           </button>
         </div>
       </div>
@@ -129,7 +133,7 @@ Format de réponse attendu :
       {/* Main Split Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left: Editor Box (Full Height) */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl flex flex-col overflow-hidden group focus-within:ring-4 focus-within:ring-primary/10 transition-all h-[400px]">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl flex flex-col overflow-hidden group focus-within:ring-4 focus-within:ring-primary/10 transition-all h-[420px]">
           <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Votre texte à vérifier</span>
@@ -186,7 +190,7 @@ Format de réponse attendu :
         {/* Right: Two Stacked Boxes */}
         <div className="flex flex-col gap-6 sticky top-24 self-start h-fit">
           {/* Top: Correcteur Box */}
-          <div className="h-[188px] bg-white rounded-3xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
+          <div className="h-[198px] bg-white rounded-2xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
             <div className="px-6 py-3 border-b border-slate-100 bg-orange-50/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-orange-100 rounded-lg text-4">
@@ -218,7 +222,7 @@ Format de réponse attendu :
           </div>
 
           {/* Bottom: Suggestions Box */}
-          <div className="h-[188px] bg-white rounded-3xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
+          <div className="h-[198px] bg-white rounded-2xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
             <div className="px-6 py-3 border-b border-slate-100 bg-amber-50/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-amber-100 rounded-lg text-6">
