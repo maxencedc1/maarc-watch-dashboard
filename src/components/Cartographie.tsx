@@ -7,8 +7,10 @@ import louvain from 'graphology-communities-louvain';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
 import EdgeCurveProgram from "@sigma/edge-curve";
-import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink, Layers, Eye, EyeOff, Share2, Filter, Plus, Minus } from 'lucide-react';
+import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink, Layers, Eye, EyeOff, Share2, Filter, Plus, Minus, Sparkles, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
+import Markdown from 'react-markdown';
 
 interface Publication {
   id: string;
@@ -32,9 +34,10 @@ const SigmaController: React.FC<{
   setHoveredNode: (node: string | null) => void;
   selectedNode: string | null;
   setSelectedNode: (node: string | null | ((prev: string | null) => string | null)) => void;
+  selectedCommunity: number | null;
   nodeSizeMultiplier: number;
   hiddenCommunities: Set<number>;
-}> = ({ graph, hoveredNode, setHoveredNode, selectedNode, setSelectedNode, nodeSizeMultiplier, hiddenCommunities }) => {
+}> = ({ graph, hoveredNode, setHoveredNode, selectedNode, setSelectedNode, selectedCommunity, nodeSizeMultiplier, hiddenCommunities }) => {
   const loadGraph = useLoadGraph();
   const sigma = useSigma();
 
@@ -83,6 +86,8 @@ const SigmaController: React.FC<{
         if (!adjacency[targetComm]) adjacency[targetComm] = new Set();
         adjacency[sourceComm].add(targetComm);
         adjacency[targetComm].add(sourceComm);
+        adjacency[sourceComm].add(targetComm);
+        adjacency[targetComm].add(sourceComm);
       }
     });
     return adjacency;
@@ -91,9 +96,14 @@ const SigmaController: React.FC<{
   // Calculate active context: visible nodes and top 10 labels when a node/community is active
   const activeContext = useMemo(() => {
     const activeNode = hoveredNode || selectedNode;
-    if (!activeNode || !graph) return null;
+    if (!activeNode && selectedCommunity === null) return null;
 
-    const activeCommunity = graph.getNodeAttribute(activeNode, 'community');
+    const activeCommunity = activeNode 
+      ? graph.getNodeAttribute(activeNode, 'community') 
+      : selectedCommunity;
+    
+    if (activeCommunity === null || activeCommunity === undefined) return null;
+
     const visibleNodes = new Set<string>();
     const connectedNeighborNodes = new Set<string>();
 
@@ -126,10 +136,10 @@ const SigmaController: React.FC<{
     );
 
     // Ensure the active node itself is always labeled if it's not in the top 10
-    topLabels.add(activeNode);
+    if (activeNode) topLabels.add(activeNode);
 
     return { visibleNodes, topLabels, activeCommunity, connectedNeighborNodes };
-  }, [graph, hoveredNode, selectedNode]);
+  }, [graph, hoveredNode, selectedNode, selectedCommunity]);
 
   useEffect(() => {
     // Handle click on node to highlight community
@@ -184,6 +194,19 @@ const SigmaController: React.FC<{
     };
   }, [sigma, graph]);
 
+  // Center camera on selected node
+  useEffect(() => {
+    if (selectedNode && graph.hasNode(selectedNode)) {
+      const nodeData = sigma.getNodeDisplayData(selectedNode);
+      if (nodeData) {
+        sigma.getCamera().animate(
+          { x: nodeData.x, y: nodeData.y, ratio: 0.15 },
+          { duration: 600 }
+        );
+      }
+    }
+  }, [selectedNode, sigma, graph]);
+
   // Apply node and edge reducers for highlight effect
   useEffect(() => {
     const activeNode = hoveredNode || selectedNode;
@@ -221,8 +244,8 @@ const SigmaController: React.FC<{
             res.label = data.label;
             res.zIndex = 100;
             res.labelColor = "#000000";
-            res.labelWeight = "800";
-            res.labelSize = labelSize;
+            res.labelWeight = node === activeNode ? "900" : "800";
+            res.labelSize = node === activeNode ? labelSize * 1.2 : labelSize;
           } else {
             res.label = "";
           }
@@ -425,7 +448,7 @@ const Legend: React.FC<{
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="bg-white/90 backdrop-blur-sm p-3 rounded-2xl border border-slate-200 shadow-2xl w-56 flex flex-col gap-2 mt-2"
+            className="bg-white/90 backdrop-blur-sm p-3 rounded-2xl border border-slate-200 shadow-2xl w-42 flex flex-col gap-2 mt-2"
           >
             <div className="flex items-center justify-between px-1">
               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Clusters</span>
@@ -479,7 +502,6 @@ const Legend: React.FC<{
                   </div>
                   <div className="flex items-center gap-2 ml-2 shrink-0">
                     <span className="text-[8px] font-black text-slate-300">{comm.percentage}%</span>
-                    <span className="text-[9px] font-black text-slate-400 w-6 text-right">{comm.count}</span>
                   </div>
                 </div>
               ))}
@@ -593,6 +615,10 @@ export default function Cartographie() {
   const [nodeSizeMultiplier, setNodeSizeMultiplier] = useState(1);
   const [hiddenCommunities, setHiddenCommunities] = useState<Set<number>>(new Set());
   const [publications, setPublications] = useState<Publication[]>([]);
+  const [selectedCommunity, setSelectedCommunity] = useState<number | null>(null);
+  const [synthesis, setSynthesis] = useState<string>("");
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [isSynthesisExpanded, setIsSynthesisExpanded] = useState(false);
   const [isCsvDragging, setIsCsvDragging] = useState(false);
   const [isGexfDragging, setIsGexfDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -636,12 +662,27 @@ export default function Cartographie() {
       });
 
       // 2. Run Louvain clustering with weight awareness
-      // We use a slightly higher resolution to find more distinct "factions"
       const communities = louvain(newGraph, {
         resolution: 1.2,
         getEdgeWeight: (edge) => newGraph.getEdgeAttribute(edge, 'weight') || 1
       });
-      const clusterCount = new Set(Object.values(communities)).size;
+
+      // 3. Sort communities by size (number of nodes)
+      const communityCounts: Record<number, number> = {};
+      Object.values(communities).forEach(c => {
+        communityCounts[c] = (communityCounts[c] || 0) + 1;
+      });
+
+      const sortedCommunityIds = Object.entries(communityCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([id]) => Number(id));
+
+      const communityMapping: Record<number, number> = {};
+      sortedCommunityIds.forEach((oldId, index) => {
+        communityMapping[oldId] = index;
+      });
+
+      const clusterCount = sortedCommunityIds.length;
       
       const colors = [
         '#E91E63', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', 
@@ -650,7 +691,8 @@ export default function Cartographie() {
       ];
 
       newGraph.forEachNode((node) => {
-        const community = communities[node];
+        const oldCommunity = communities[node];
+        const community = communityMapping[oldCommunity];
         newGraph.setNodeAttribute(node, 'community', community);
         newGraph.setNodeAttribute(node, 'color', colors[community % colors.length]);
         const size = newGraph.getNodeAttribute(node, 'size') || 5;
@@ -665,8 +707,8 @@ export default function Cartographie() {
         const colorWithOpacity = sourceColor.length === 7 ? `${sourceColor}B2` : sourceColor;
         newGraph.setEdgeAttribute(edge, 'color', colorWithOpacity);
         const weight = attr.weight || 1;
-        // Vary size slightly based on weight: base 0.15, max 0.8
-        newGraph.setEdgeAttribute(edge, 'size', Math.max(0.15, Math.min(0.15 + (weight * 0.1), 0.8)));
+        // Vary size more noticeably based on weight: base 0.2, max 2.5
+        newGraph.setEdgeAttribute(edge, 'size', Math.max(0.2, Math.min(0.2 + (weight * 0.4), 2.5)));
       });
 
       // 5. Run ForceAtlas2 layout optimized for cluster separation (Visibrain-style)
@@ -712,9 +754,12 @@ export default function Cartographie() {
 
       const names: Record<number, string> = {};
       for (let i = 0; i < clusterCount; i++) {
-        names[i] = `Communauté ${i + 1}`;
+        names[i] = `Cluster ${i + 1}`;
       }
       setCommunityNames(names);
+      setSelectedCommunity(null);
+      setSelectedNode(null);
+      setSynthesis("");
       setIsProcessing(false);
     } catch (err) {
       console.error('Error finalizing graph:', err);
@@ -791,6 +836,71 @@ export default function Cartographie() {
         processCsv(content);
       };
       reader.readAsText(file);
+    }
+  };
+
+  const generateSynthesis = async (communityId: number) => {
+    if (!publications.length || !graph) return;
+    
+    setIsSynthesizing(true);
+    setSynthesis("");
+    
+    try {
+      // Get nodes in this community
+      const communityNodes = new Set<string>();
+      graph.forEachNode((node, attr) => {
+        if (attr.community === communityId) {
+          communityNodes.add(node.toLowerCase().trim().replace(/^@/, ''));
+        }
+      });
+      
+      // Filter publications by these authors
+      const communityPubs = publications.filter(pub => 
+        communityNodes.has(pub.normalizedAuthor)
+      ).slice(0, 50); // Limit to top 50 for context
+      
+      if (communityPubs.length === 0) {
+        setSynthesis("Aucune publication trouvée pour ce Cluster pour générer une synthèse.");
+        setIsSynthesizing(false);
+        setIsSynthesisExpanded(true);
+        return;
+      }
+      
+      const pubsText = communityPubs.map(p => `- ${p.author}: ${p.content}`).join('\n');
+      
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const model = ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Ta mission est de synthétiser les conversations au sein d'un "cluster" (une communauté d'influence cohérente) pour en extraire la substantifique moelle stratégique. 
+Objectif : Produire une synthèse brève, claire et précise qui répond à la question : "Que se dit-il et qui mène la danse dans ce groupe ?"
+Instructions de rédaction :
+- IMPORTANT : Ne commence JAMAIS par une phrase d'introduction comme "Voici la synthèse..." ou "Voici ce qui se dit...". Entre DIRECTEMENT dans le vif du sujet avec le titre.
+- Angle d'attaque : Identifie le "narratif maître" du cluster (ex: indignation morale, critique technique, soutien institutionnel).
+- Synthèse par Bullet Points : Détaille les 3 à 5 thématiques ou arguments principaux qui circulent.
+- Attribution : Intègre systématiquement entre parenthèses le nom de l'auteur ou du média lorsqu'une prise de position est structurante ou très virale (ex: @Auteur).
+- Ton & Intensité : Précise le climat émotionnel (ironie, colère, mobilisation) et si des appels à l'action sont formulés (appels au boycott, pétitions, interpellations de politiques).
+
+Format de sortie (en Markdown) :
+- Titre : Nommer le cluster (ex: "# LE PÔLE MILITANT ACTIVISTE"). Utilise un titre de niveau 1 (#).
+- L'Essentiel : Le résumé ultra-condensé en 1 phrase max. Utilise du **gras** pour les termes clés.
+- Analyse : Liste à puces Markdown (utilisant "- ") avec les attributions. Chaque argument ou paragraphe DOIT être un élément de liste distinct. Utilise du **gras** pour souligner les points saillants.
+- Signal Faible : Une information ou un argument émergent qui pourrait sortir du cluster. Utilise du **gras**.
+
+IMPORTANT : Saute TOUJOURS une ligne vide entre chaque section pour garantir une lecture aérée.
+
+Publications :
+${pubsText}`,
+      });
+      
+      const response = await model;
+      setSynthesis(response.text || "Erreur lors de la génération de la synthèse.");
+      setIsSynthesisExpanded(true);
+    } catch (err) {
+      console.error("Synthesis error:", err);
+      setSynthesis("Une erreur est survenue lors de la génération de la synthèse par l'IA.");
+      setIsSynthesisExpanded(true);
+    } finally {
+      setIsSynthesizing(false);
     }
   };
 
@@ -872,18 +982,32 @@ export default function Cartographie() {
   };
 
   const filteredPublications = useMemo(() => {
-    if (!selectedNode || !graph) return publications;
+    if (!graph) return publications;
     
-    const nodeAttr = graph.getNodeAttributes(selectedNode);
-    const possibleIds = new Set([
-      String(selectedNode).toLowerCase().trim().replace(/^@/, ''),
-      String(nodeAttr.label || '').toLowerCase().trim().replace(/^@/, ''),
-      String(nodeAttr.displayName || '').toLowerCase().trim().replace(/^@/, ''),
-      String(nodeAttr.screen_name || '').toLowerCase().trim().replace(/^@/, '')
-    ].filter(Boolean));
+    let filtered = publications;
+
+    if (selectedNode) {
+      const nodeAttr = graph.getNodeAttributes(selectedNode);
+      const possibleIds = new Set([
+        String(selectedNode).toLowerCase().trim().replace(/^@/, ''),
+        String(nodeAttr.label || '').toLowerCase().trim().replace(/^@/, ''),
+        String(nodeAttr.displayName || '').toLowerCase().trim().replace(/^@/, ''),
+        String(nodeAttr.screen_name || '').toLowerCase().trim().replace(/^@/, '')
+      ].filter(Boolean));
+      
+      filtered = publications.filter(p => possibleIds.has(p.normalizedAuthor));
+    } else if (selectedCommunity !== null) {
+      const communityNodes = new Set<string>();
+      graph.forEachNode((node, attr) => {
+        if (attr.community === selectedCommunity) {
+          communityNodes.add(node.toLowerCase().trim().replace(/^@/, ''));
+        }
+      });
+      filtered = publications.filter(p => communityNodes.has(p.normalizedAuthor));
+    }
     
-    return publications.filter(p => possibleIds.has(p.normalizedAuthor));
-  }, [publications, selectedNode, graph]);
+    return filtered.sort((a, b) => (b.retweets || 0) - (a.retweets || 0));
+  }, [publications, selectedNode, selectedCommunity, graph]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6 bg-slate-50/50 rounded-2xl">
@@ -894,7 +1018,7 @@ export default function Cartographie() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-secondary tracking-tight">Cartographie <span className="text-primary">Maarc</span></h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Identifiez rapidement les communautés qui s'expriment sur vos sujets</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Identifiez rapidement les Clusters qui s'expriment sur vos sujets</p>
           </div>
         </div>
         
@@ -937,7 +1061,7 @@ export default function Cartographie() {
 
       <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
         {/* Left Column: Map (Expanded) */}
-        <div className="col-span-8 relative bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-0 h-[420px]">
+        <div className="col-span-8 relative bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-0 h-[450px]">
           {!graph ? (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
               <Network size={48} className="text-slate-200 mb-4" />
@@ -999,6 +1123,7 @@ export default function Cartographie() {
                     setHoveredNode={setHoveredNode}
                     selectedNode={selectedNode}
                     setSelectedNode={setSelectedNode}
+                    selectedCommunity={selectedCommunity}
                     nodeSizeMultiplier={nodeSizeMultiplier}
                     hiddenCommunities={hiddenCommunities}
                   />
@@ -1024,9 +1149,9 @@ export default function Cartographie() {
         </div>
 
         {/* Right Column: Publications (Styled) */}
-        <div className="col-span-4 bg-slate-50/50 rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-0 h-[420px] overflow-hidden">
-          <div className="p-5 bg-white border-b border-slate-100 shrink-0">
-            <div className="flex items-center justify-between mb-1.5">
+        <div className="col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-0 h-[450px] overflow-hidden">
+          <div className="p-5 bg-white shrink-0">
+            <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
                 <MessageSquare size={14} className="text-secondary" />
                 Flux de Publications
@@ -1037,9 +1162,91 @@ export default function Cartographie() {
                 </span>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">
-              {selectedNode ? `Filtré : ${graph?.getNodeAttribute(selectedNode, 'label') || selectedNode}` : 'Toutes les sources'}
-            </p>
+            
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <select 
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black text-slate-700 outline-none focus:ring-2 focus:ring-secondary/20 transition-all uppercase tracking-widest"
+                  value={selectedCommunity ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value === "" ? null : Number(e.target.value);
+                    setSelectedCommunity(val);
+                    setSelectedNode(null); // Clear node selection when changing community
+                  }}
+                >
+                  <option value="">Tous les Clusters</option>
+                  {Object.entries(communityNames)
+                    .slice(0, 5)
+                    .map(([id, name]) => (
+                      <option key={id} value={id}>{name}</option>
+                    ))}
+                </select>
+
+                <button
+                  onClick={() => selectedCommunity !== null && generateSynthesis(selectedCommunity)}
+                  disabled={selectedCommunity === null || isSynthesizing}
+                  className="flex items-center gap-2 bg-secondary text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-secondary/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {isSynthesizing ? (
+                    <RefreshCw size={12} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={12} />
+                  )}
+                  Synthèse
+                </button>
+              </div>
+
+              {/* AI Synthesis Accordion (Moved here) */}
+              <AnimatePresence>
+                {(synthesis || isSynthesizing) && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="bg-[#FBC33C] rounded-xl overflow-hidden shadow-sm"
+                  >
+                    <button 
+                      onClick={() => setIsSynthesisExpanded(!isSynthesisExpanded)}
+                      className="w-full px-4 py-2.5 flex items-center justify-between text-black hover:bg-black/5 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-black" />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Synthèse IA {selectedCommunity !== null ? `(${communityNames[selectedCommunity]})` : ''}</span>
+                    </div>
+                      {isSynthesisExpanded ? <Minus size={14} className="text-black" /> : <Plus size={14} className="text-black" />}
+                    </button>
+                    
+                    <AnimatePresence>
+                      {isSynthesisExpanded && (
+                        <motion.div 
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="px-4 pb-4 max-h-[250px] overflow-y-auto custom-scrollbar-light"
+                        >
+                          {isSynthesizing ? (
+                            <div className="py-6 flex flex-col items-center justify-center gap-3">
+                              <RefreshCw size={20} className="text-black animate-spin" />
+                              <p className="text-[9px] font-black text-black/60 uppercase tracking-widest animate-pulse">Génération en cours...</p>
+                            </div>
+                          ) : (
+                            <div className="prose prose-sm max-w-none text-[11px] text-left leading-relaxed prose-headings:text-black prose-headings:font-black prose-headings:uppercase prose-headings:tracking-widest prose-h1:text-[12px] prose-headings:mb-3 prose-p:text-black prose-p:font-medium prose-p:mb-3 prose-strong:text-black prose-strong:font-black prose-ul:list-none prose-ul:pl-0 prose-ul:mb-3 prose-li:text-black prose-li:mb-1 prose-li:relative prose-li:pl-4 prose-li:before:content-['-'] prose-li:before:absolute prose-li:before:left-0 prose-li:before:top-0">
+                              <Markdown>{synthesis}</Markdown>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">
+                {selectedNode 
+                  ? `Filtré par compte : ${graph?.getNodeAttribute(selectedNode, 'label') || selectedNode}` 
+                  : ''}
+              </p>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
@@ -1070,14 +1277,14 @@ export default function Cartographie() {
                       {graph.getNodeAttribute(selectedNode, 'label') || selectedNode}
                     </h3>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Communauté {graph.getNodeAttribute(selectedNode, 'community') + 1}
+                      Cluster {graph.getNodeAttribute(selectedNode, 'community') + 1}
                     </p>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-2">
                   <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center justify-between">
-                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Followers</div>
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Abonnés</div>
                     <div className="text-xs font-black text-slate-900">
                       {graph.getNodeAttribute(selectedNode, 'followers')?.toLocaleString() || 
                        graph.getNodeAttribute(selectedNode, 'follower_count')?.toLocaleString() || 
@@ -1111,7 +1318,7 @@ export default function Cartographie() {
                       selectedNode && (pub.normalizedAuthor === String(selectedNode).toLowerCase().trim().replace(/^@/, '') || 
                       pub.normalizedAuthor === String(graph?.getNodeAttribute(selectedNode, 'label') || '').toLowerCase().trim().replace(/^@/, ''))
                         ? 'border-secondary bg-white shadow-lg ring-1 ring-secondary/20'
-                        : 'border-slate-100 bg-white hover:border-slate-200'
+                        : 'border-slate-100 bg-slate-50 hover:border-slate-200'
                     }`}
                     onClick={() => {
                       // Select node in graph by author name
@@ -1130,22 +1337,22 @@ export default function Cartographie() {
                       }
                     }}
                   >
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
+                        <div className="flex flex-col gap-0.5">
                           <span className="text-xs font-black text-slate-900 truncate group-hover:text-secondary transition-colors">
                             {pub.author}
                           </span>
                           {pub.followers !== undefined && pub.followers > 0 && (
-                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">
-                              {pub.followers >= 1000 ? `${(pub.followers / 1000).toFixed(1)}k` : pub.followers} flw
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-tight">
+                              {pub.followers >= 1000 ? `${(pub.followers / 1000).toFixed(1)}k` : pub.followers} abonnés
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                          <Calendar size={10} className="text-slate-300" />
-                          {pub.date}
-                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-widest whitespace-nowrap ml-2">
+                        <Calendar size={10} className="text-slate-300" />
+                        {pub.date}
                       </div>
                     </div>
 
@@ -1153,7 +1360,7 @@ export default function Cartographie() {
                       {pub.content}
                     </p>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+                    <div className="flex items-center justify-between pt-3">
                       <div className="flex items-center gap-4">
                         {pub.retweets !== undefined && (
                           <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary">
@@ -1195,6 +1402,8 @@ export default function Cartographie() {
           </div>
         </div>
       </div>
+
+      {/* Community Analysis Section Removed */}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {

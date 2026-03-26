@@ -6,7 +6,7 @@ import logo from './Logo.png';
 import { ChevronDown } from 'lucide-react';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'indices' | 'correcteur' | 'analyste' | 'cartographie'>('correcteur');
+  const [currentView, setCurrentView] = useState<'indices' | 'correcteur' | 'cartographie'>('correcteur');
   const [activeTab, setActiveTab] = useState('visibilite');
   const [scrolled, setScrolled] = useState(false);
 
@@ -50,18 +50,6 @@ export default function App() {
               }`}
             >
               Correcteur
-            </button>
-
-            {/* Analyste Button */}
-            <button
-              onClick={() => setCurrentView('analyste')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                currentView === 'analyste'
-                  ? 'bg-secondary text-white shadow-md'
-                  : 'text-slate-600 hover:bg-primary hover:text-secondary'
-              }`}
-            >
-              Analyste
             </button>
 
             {/* Cartographie Button */}
@@ -136,13 +124,6 @@ export default function App() {
           ))
         ) : currentView === 'correcteur' ? (
           <Correcteur />
-        ) : currentView === 'analyste' ? (
-          <div className="max-w-7xl mx-auto px-4 py-12">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-12 text-center">
-              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-widest mb-4">Analyste</h2>
-              <p className="text-slate-400 font-bold uppercase tracking-tight">Cette page est en cours de développement.</p>
-            </div>
-          </div>
         ) : (
           <Cartographie />
         )}

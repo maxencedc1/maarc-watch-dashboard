@@ -133,7 +133,7 @@ Format de réponse attendu :
       {/* Main Split Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left: Editor Box (Full Height) */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl flex flex-col overflow-hidden group focus-within:ring-4 focus-within:ring-primary/10 transition-all h-[420px]">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl flex flex-col overflow-hidden group focus-within:ring-4 focus-within:ring-primary/10 transition-all h-[450px]">
           <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Votre texte à vérifier</span>
@@ -190,7 +190,7 @@ Format de réponse attendu :
         {/* Right: Two Stacked Boxes */}
         <div className="flex flex-col gap-6 sticky top-24 self-start h-fit">
           {/* Top: Correcteur Box */}
-          <div className="h-[198px] bg-white rounded-2xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
+          <div className="h-[213px] bg-white rounded-2xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
             <div className="px-6 py-3 border-b border-slate-100 bg-orange-50/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-orange-100 rounded-lg text-4">
@@ -222,7 +222,7 @@ Format de réponse attendu :
           </div>
 
           {/* Bottom: Suggestions Box */}
-          <div className="h-[198px] bg-white rounded-2xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
+          <div className="h-[213px] bg-white rounded-2xl border border-slate-200 shadow-lg flex flex-col overflow-hidden transition-all hover:shadow-xl">
             <div className="px-6 py-3 border-b border-slate-100 bg-amber-50/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-amber-100 rounded-lg text-6">
