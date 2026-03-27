@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Correcteur from './components/Correcteur';
 import Cartographie from './components/Cartographie';
-import logo from './Logo.png';
+const logo = '/logo.png';
 import { ChevronDown } from 'lucide-react';
 
 export default function App() {
