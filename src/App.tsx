@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Correcteur from './components/Correcteur';
 import Cartographie from './components/Cartographie';
+import YouTubeAnalyser from './components/YouTubeAnalyser';
 const logo = '/logo.png';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Youtube } from 'lucide-react';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'indices' | 'correcteur' | 'cartographie'>('correcteur');
+  const [currentView, setCurrentView] = useState<'indices' | 'correcteur' | 'cartographie' | 'youtube'>('correcteur');
   const [activeTab, setActiveTab] = useState('visibilite');
   const [scrolled, setScrolled] = useState(false);
 
@@ -63,6 +64,37 @@ export default function App() {
             >
               Cartographie
             </button>
+
+            {/* Analyste Dropdown */}
+            <div className="relative group">
+              <button 
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                  currentView === 'youtube' 
+                    ? 'bg-secondary text-white shadow-md' 
+                    : 'text-slate-600 hover:bg-primary hover:text-secondary'
+                }`}
+              >
+                Analyste
+                <ChevronDown size={16} className="transition-transform group-hover:rotate-180" />
+              </button>
+              
+              {/* Dropdown Content */}
+              <div className="absolute left-0 top-full pt-2 opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200 z-50">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden min-w-[200px]">
+                  <button
+                    onClick={() => setCurrentView('youtube')}
+                    className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors flex items-center gap-2 ${
+                      currentView === 'youtube'
+                        ? 'bg-slate-50 text-secondary border-l-4 border-secondary'
+                        : 'text-slate-600 hover:bg-primary hover:text-secondary'
+                    }`}
+                  >
+                    <Youtube size={16} />
+                    YouTube
+                  </button>
+                </div>
+              </div>
+            </div>
 
             {/* Dropdown Menu */}
             <div className="relative group">
@@ -124,8 +156,10 @@ export default function App() {
           ))
         ) : currentView === 'correcteur' ? (
           <Correcteur />
-        ) : (
+        ) : currentView === 'cartographie' ? (
           <Cartographie />
+        ) : (
+          <YouTubeAnalyser />
         )}
       </main>
     </div>
