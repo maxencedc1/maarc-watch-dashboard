@@ -1011,40 +1011,52 @@ ${pubsText}`,
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6 bg-slate-50/50 rounded-2xl">
-      <div className="flex items-center justify-end shrink-0 px-2 gap-3">
-        {/* Compact GEXF Upload */}
-        <div className="w-[130px] flex items-center gap-2 bg-white border border-dashed border-slate-300 rounded-2xl px-4 h-[42px] hover:border-secondary transition-colors group relative shadow-sm">
-          <Network size={16} className={graph ? 'text-emerald-500' : 'text-slate-400'} />
-          <div className="flex flex-col justify-center">
-            <span className="text-[10px] font-bold text-slate-900 leading-none">Réseau GEXF</span>
-            <span className="text-[9px] text-slate-400 leading-none mt-0.5">{graph ? 'Chargé' : 'Attente...'}</span>
+      <div className="flex flex-col sm:flex-row items-center justify-between shrink-0 px-2 gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary to-slate-700 flex items-center justify-center text-white shadow-lg shadow-secondary/20">
+            <Network size={24} />
           </div>
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".gexf" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-        </div>
-
-        {/* Compact CSV Upload */}
-        <div className="w-[130px] flex items-center gap-2 bg-white border border-dashed border-slate-300 rounded-2xl px-4 h-[42px] hover:border-secondary transition-colors group relative shadow-sm">
-          <FileText size={16} className={publications.length > 0 ? 'text-emerald-500' : 'text-slate-400'} />
-          <div className="flex flex-col justify-center">
-            <span className="text-[10px] font-bold text-slate-900 leading-none">Publications CSV</span>
-            <span className="text-[9px] text-slate-400 leading-none mt-0.5">{publications.length > 0 ? `${publications.length} posts` : 'Attente...'}</span>
+          <div>
+            <h1 className="text-2xl font-black text-secondary tracking-tight">Cartographie <span className="text-primary">Maarc</span></h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Identifiez rapidement les Clusters qui s'expriment sur vos sujets</p>
           </div>
-          <input type="file" ref={csvInputRef} onChange={handleCsvUpload} accept=".csv" className="hidden" />
-          <button onClick={() => csvInputRef.current?.click()} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
         </div>
+        
+        <div className="flex items-center gap-3">
+          {/* Compact GEXF Upload */}
+          <div className="w-[130px] flex items-center gap-2 bg-white border border-dashed border-slate-300 rounded-2xl px-4 h-[42px] hover:border-secondary transition-colors group relative shadow-sm">
+            <Network size={16} className={graph ? 'text-emerald-500' : 'text-slate-400'} />
+            <div className="flex flex-col justify-center">
+              <span className="text-[10px] font-bold text-slate-900 leading-none">Réseau GEXF</span>
+              <span className="text-[9px] text-slate-400 leading-none mt-0.5">{graph ? 'Chargé' : 'Attente...'}</span>
+            </div>
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".gexf" className="hidden" />
+            <button onClick={() => fileInputRef.current?.click()} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          </div>
 
-        <button 
-          onClick={clearGraph}
-          disabled={!graph && publications.length === 0}
-          className={`w-[130px] flex items-center justify-center gap-2 px-4 h-[42px] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border ${
-            (graph || publications.length > 0) 
-              ? 'text-red-500 bg-red-50 border-red-100 hover:bg-red-100' 
-              : 'text-slate-300 bg-slate-50 border-slate-100 cursor-not-allowed'
-          }`}
-        >
-          Réinitialiser
-        </button>
+          {/* Compact CSV Upload */}
+          <div className="w-[130px] flex items-center gap-2 bg-white border border-dashed border-slate-300 rounded-2xl px-4 h-[42px] hover:border-secondary transition-colors group relative shadow-sm">
+            <FileText size={16} className={publications.length > 0 ? 'text-emerald-500' : 'text-slate-400'} />
+            <div className="flex flex-col justify-center">
+              <span className="text-[10px] font-bold text-slate-900 leading-none">Publications CSV</span>
+              <span className="text-[9px] text-slate-400 leading-none mt-0.5">{publications.length > 0 ? `${publications.length} posts` : 'Attente...'}</span>
+            </div>
+            <input type="file" ref={csvInputRef} onChange={handleCsvUpload} accept=".csv" className="hidden" />
+            <button onClick={() => csvInputRef.current?.click()} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          </div>
+
+          <button 
+            onClick={clearGraph}
+            disabled={!graph && publications.length === 0}
+            className={`w-[130px] flex items-center justify-center gap-2 px-4 h-[42px] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border ${
+              (graph || publications.length > 0) 
+                ? 'text-red-500 bg-red-50 border-red-100 hover:bg-red-100' 
+                : 'text-slate-300 bg-slate-50 border-slate-100 cursor-not-allowed'
+            }`}
+          >
+            Réinitialiser
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">

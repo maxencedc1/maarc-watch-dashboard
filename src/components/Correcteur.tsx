@@ -92,8 +92,18 @@ Format de réponse attendu :
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6 bg-slate-50/50 rounded-3xl">
-      {/* Actions */}
-      <div className="flex items-center justify-end shrink-0 px-2 gap-4">
+      {/* Header with Actions */}
+      <div className="flex flex-col sm:flex-row items-center justify-between shrink-0 px-2 gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary to-slate-700 flex items-center justify-center text-white shadow-lg shadow-secondary/20">
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-secondary tracking-tight">Atelier de correction <span className="text-primary">Maarc</span></h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Analyse & Optimisation de texte</p>
+          </div>
+        </div>
+        
         <div className="flex items-center gap-4">
           {/* Quota Indicator */}
           <div className="w-[130px] flex items-center gap-3 bg-white border border-slate-200 px-4 h-[42px] rounded-2xl shadow-sm">
