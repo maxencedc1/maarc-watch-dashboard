@@ -12,6 +12,17 @@ async function startServer() {
 
   app.use(express.json({ limit: '1mb' }));
 
+  // Request logger for API
+  app.use("/api", (req, res, next) => {
+    console.log(`[API] ${req.method} ${req.url}`);
+    next();
+  });
+
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", env: process.env.NODE_ENV });
+  });
+
   // API route to fetch YouTube video info and comments
   app.get("/api/youtube/video", async (req, res) => {
     const { videoId } = req.query;
@@ -118,6 +129,44 @@ async function startServer() {
       console.error("Gemini Analysis Error:", error);
       res.status(500).json({ error: error.message || "Failed to analyze comments" });
     }
+  });
+
+  // API route for text correction
+  app.post("/api/correct", async (req, res) => {
+    const { text, model, systemInstruction } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Missing text" });
+    }
+
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Gemini API key not configured on server" });
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const response = await ai.models.generateContent({
+        model: model || "gemini-3-flash-preview",
+        contents: text,
+        config: {
+          systemInstruction: systemInstruction || "Tu es un expert en linguistique et correction de texte.",
+        }
+      });
+
+      res.json({ text: response.text || "" });
+    } catch (error: any) {
+      console.error("Gemini Correction Error:", error);
+      res.status(500).json({ error: error.message || "Failed to correct text" });
+    }
+  });
+
+  // Catch-all for /api routes that don't match
+  app.all("/api/*", (req, res) => {
+    console.warn(`[API] 404 Not Found: ${req.method} ${req.url}`);
+    res.status(404).json({ error: `Route ${req.method} ${req.url} not found on this server.` });
   });
 
   // Vite middleware for development
