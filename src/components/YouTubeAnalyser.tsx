@@ -36,9 +36,12 @@ export default function YouTubeAnalyser() {
     
     try {
       const response = await fetch(`/api/youtube/video?videoId=${videoId}`);
-      if (!response.ok) throw new Error("Erreur lors de la récupération des données YouTube");
-      
       const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de la récupération des données YouTube");
+      }
+      
       setVideoData(data.video);
       setComments(data.comments);
     } catch (err: any) {

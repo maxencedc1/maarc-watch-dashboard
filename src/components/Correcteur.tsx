@@ -268,7 +268,7 @@ Format de réponse attendu :
 function EmptyState({ icon, text }: { icon: React.ReactNode, text: string }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center space-y-3 opacity-40">
-      <div className="w-12 h-12 rounded-xl bg-slate-200 flex items-center justify-center text-slate-400">
+      <div className="w-12 h-12 rounded-2xl bg-slate-200 flex items-center justify-center text-slate-400">
         {icon}
       </div>
       <p className="text-xs font-bold text-slate-500">{text}</p>

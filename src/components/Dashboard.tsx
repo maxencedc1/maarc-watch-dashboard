@@ -185,7 +185,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                         value={metrics[platform.id].posts || ''}
                         onChange={(e) => handleInputChange(platform.id, 'posts', e.target.value)}
                         placeholder="0"
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-base font-medium"
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-base font-medium"
                       />
                     </div>
                     <div className="space-y-1">
@@ -197,7 +197,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                         value={metrics[platform.id].interactions || ''}
                         onChange={(e) => handleInputChange(platform.id, 'interactions', e.target.value)}
                         placeholder="0"
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-base font-medium"
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-base font-medium"
                       />
                     </div>
                     <div className="space-y-1">
@@ -209,7 +209,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                         value={metrics[platform.id].reach || ''}
                         onChange={(e) => handleInputChange(platform.id, 'reach', e.target.value)}
                         placeholder="0"
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-base font-medium"
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-base font-medium"
                       />
                     </div>
                   </div>
@@ -328,7 +328,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                   <div className="space-y-3">
                     <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">Seuils de Normalisation (Max)</p>
                     <ul className="grid grid-cols-3 gap-3">
-                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
+                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-2xl border border-slate-700">
                         <span className="font-bold text-4 text-[10px] uppercase tracking-wider">M (Mentions)</span>
                         <input 
                           type="text" 
@@ -337,7 +337,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-right text-white font-mono font-bold text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                       </li>
-                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
+                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-2xl border border-slate-700">
                         <span className="font-bold text-6 text-[10px] uppercase tracking-wider">I (Interactions)</span>
                         <input 
                           type="text" 
@@ -346,7 +346,7 @@ export default function Dashboard({ title = "Score de visibilité sociale enrich
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-right text-white font-mono font-bold text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         />
                       </li>
-                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
+                      <li className="flex flex-col gap-2 bg-slate-800 p-3 rounded-2xl border border-slate-700">
                         <span className="font-bold text-5 text-[10px] uppercase tracking-wider">P (Portée)</span>
                         <input 
                           type="text" 

@@ -1261,7 +1261,7 @@ ${pubsText}`,
                 <div className="absolute top-0 right-0 p-2">
                   <button 
                     onClick={() => setSelectedNode(null)}
-                    className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"
+                    className="p-1.5 hover:bg-slate-100 rounded-2xl text-slate-400 transition-colors"
                   >
                     <X size={14} />
                   </button>
@@ -1285,7 +1285,7 @@ ${pubsText}`,
                 </div>
                 
                 <div className="grid grid-cols-1 gap-2">
-                  <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center justify-between">
+                  <div className="bg-slate-50 p-2 rounded-2xl border border-slate-100 flex items-center justify-between">
                     <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Abonnés</div>
                     <div className="text-xs font-black text-slate-900">
                       {graph.getNodeAttribute(selectedNode, 'followers')?.toLocaleString() || 
@@ -1294,7 +1294,7 @@ ${pubsText}`,
                     </div>
                   </div>
                   
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
                     <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Description du compte</div>
                     <div className="text-[10px] text-slate-600 leading-relaxed italic line-clamp-4">
                       {graph.getNodeAttribute(selectedNode, 'description') || 
