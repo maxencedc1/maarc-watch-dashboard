@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: youtube_analyses
+    // Document ID: {analysisId}
+    // Fields:
+    //   - videoId: string (required) - The ID of the YouTube video.
+    //   - videoTitle: string (required) - The title of the YouTube video.
+    //   - analysis: string (required, max 10000 chars) - The AI-generated analysis text.
+    //   - createdAt: timestamp (required) - The timestamp when the analysis was created.
+    //   - userId: string (required) - The ID of the user who performed the analysis.
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidUnchanged() {
+      return !('userId' in request.resource.data) ||
+        request.resource.data.userId == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('userId' in request.resource.data) ||
+        request.resource.data.userId == resource.data.userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidAnalysis(data) {
+      return data.videoId is string && data.videoId.size() > 0 && data.videoId.size() < 100 &&
+             data.videoTitle is string && data.videoTitle.size() > 0 && data.videoTitle.size() < 500 &&
+             data.analysis is string && data.analysis.size() > 0 && data.analysis.size() < 10000 &&
+             data.createdAt is timestamp &&
+             data.userId is string && data.userId == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /youtube_analyses/{analysisId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && hasRequiredFields(['videoId', 'videoTitle', 'analysis', 'createdAt', 'userId']) && isValidAnalysis(request.resource.data);
+      allow update: if false; // Analyses are immutable
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}
