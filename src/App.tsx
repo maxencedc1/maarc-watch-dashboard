@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   LayoutDashboard, 
@@ -25,9 +25,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Cartographie } from './components/Cartographie';
 import { IndicesDashboard } from './components/Indices';
+import { YoutubeAnalyzer } from './components/YoutubeAnalyzer';
 
 // --- Types ---
-type Page = 'correcteur' | 'cartographie' | 'analyste' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
+type Page = 'correcteur' | 'cartographie' | 'analyste' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel' | 'youtube';
 
 interface CorrectionResult {
   errors: string[];
@@ -85,6 +86,7 @@ Format de réponse attendu :
 const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrentPage: (p: Page) => void }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<Page | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -94,10 +96,27 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const handleMouseEnter = (id: Page) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setActiveDropdown(id);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setActiveDropdown(null);
+    }, 300); // 300ms grace period
+  };
+
   const navItems: { id: Page; label: string; icon?: any; dropdownItems?: { id: Page; label: string }[] }[] = [
     { id: 'correcteur', label: 'Correcteur' },
     { id: 'cartographie', label: 'Cartographie' },
-    { id: 'analyste', label: 'Analyste' },
+    { 
+      id: 'analyste', 
+      label: 'Analyste',
+      dropdownItems: [
+        { id: 'youtube', label: 'YouTube' },
+      ]
+    },
     { 
       id: 'indices', 
       label: 'Indices', 
@@ -123,9 +142,9 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
         {navItems.map((item) => (
           <div 
             key={item.id} 
-            className="relative"
-            onMouseEnter={() => item.dropdownItems && setActiveDropdown(item.id)}
-            onMouseLeave={() => setActiveDropdown(null)}
+            className="relative py-4" // Added padding to create a bridge between button and dropdown
+            onMouseEnter={() => item.dropdownItems && handleMouseEnter(item.id)}
+            onMouseLeave={() => item.dropdownItems && handleMouseLeave()}
           >
             <button
               onClick={() => !item.dropdownItems && setCurrentPage(item.id)}
@@ -139,30 +158,34 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
               {item.dropdownItems && <ChevronDown className="w-3.5 h-3.5 opacity-50" />}
             </button>
 
-            {item.dropdownItems && activeDropdown === item.id && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="absolute top-full left-0 mt-1 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 py-3 overflow-hidden"
-              >
-                {item.dropdownItems.map((subItem) => (
-                  <button
-                    key={subItem.id}
-                    onClick={() => {
-                      setCurrentPage(subItem.id);
-                      setActiveDropdown(null);
-                    }}
-                    className={`w-full px-5 py-2.5 text-left text-[12px] font-bold transition-all ${
-                      currentPage === subItem.id
-                        ? 'bg-primary/10 text-secondary'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-secondary'
-                    }`}
-                  >
-                    {subItem.label}
-                  </button>
-                ))}
-              </motion.div>
-            )}
+            <AnimatePresence>
+              {item.dropdownItems && activeDropdown === item.id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="absolute top-[80%] left-0 w-64 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 py-3 overflow-hidden"
+                >
+                  {item.dropdownItems.map((subItem) => (
+                    <button
+                      key={subItem.id}
+                      onClick={() => {
+                        setCurrentPage(subItem.id);
+                        setActiveDropdown(null);
+                      }}
+                      className={`w-full px-5 py-2.5 text-left text-[12px] font-bold transition-all ${
+                        currentPage === subItem.id
+                          ? 'bg-primary/10 text-secondary'
+                          : 'text-slate-500 hover:bg-slate-50 hover:text-secondary'
+                      }`}
+                    >
+                      {subItem.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ))}
       </div>
@@ -430,6 +453,7 @@ export default function App() {
             {currentPage === 'indice-social' && <IndicesDashboard title="Indice social enrichi" />}
             {currentPage === 'indice-composite' && <IndicesDashboard title="Indice composite social" />}
             {currentPage === 'indice-reputationnel' && <IndicesDashboard title="Indice réputationnel" />}
+            {currentPage === 'youtube' && <YoutubeAnalyzer />}
           </motion.div>
         </AnimatePresence>
       </main>
