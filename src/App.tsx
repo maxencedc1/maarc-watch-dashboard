@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
+import { Cartographie } from './components/Cartographie';
 
 // --- Types ---
 type Page = 'correcteur' | 'cartographie' | 'analyste' | 'indices';
@@ -375,7 +376,7 @@ export default function App() {
             transition={{ duration: 0.3, ease: "easeOut" }}
           >
             {currentPage === 'correcteur' && <CorrecteurPage />}
-            {currentPage === 'cartographie' && <PlaceholderPage title="Cartographie" />}
+            {currentPage === 'cartographie' && <Cartographie />}
             {currentPage === 'analyste' && <PlaceholderPage title="Analyste" />}
             {currentPage === 'indices' && <PlaceholderPage title="Indices" />}
           </motion.div>
