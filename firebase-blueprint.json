@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "YouTubeAnalysis": {
+      "title": "YouTube Analysis",
+      "description": "Stores the AI analysis of YouTube video comments.",
+      "type": "object",
+      "properties": {
+        "videoId": {
+          "type": "string",
+          "description": "The ID of the YouTube video."
+        },
+        "videoTitle": {
+          "type": "string",
+          "description": "The title of the YouTube video."
+        },
+        "analysis": {
+          "type": "string",
+          "description": "The AI-generated analysis text."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the analysis was created."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who performed the analysis."
+        }
+      },
+      "required": ["videoId", "videoTitle", "analysis", "createdAt", "userId"]
+    }
+  },
+  "firestore": {
+    "/youtube_analyses/{analysisId}": {
+      "schema": "YouTubeAnalysis",
+      "description": "Collection of YouTube comment analyses."
+    }
+  }
+}
