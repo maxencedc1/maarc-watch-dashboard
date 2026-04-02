@@ -22,11 +22,12 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Cartographie } from './components/Cartographie';
+import { IndicesDashboard } from './components/Indices';
 
 // --- Types ---
-type Page = 'correcteur' | 'cartographie' | 'analyste' | 'indices';
+type Page = 'correcteur' | 'cartographie' | 'analyste' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
 
 interface CorrectionResult {
   errors: string[];
@@ -38,9 +39,10 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 async function analyzeText(text: string): Promise<CorrectionResult> {
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-flash-lite-preview",
     contents: `Texte de l'utilisateur : "${text}"`,
     config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
       systemInstruction: `Tu es un expert en linguistique et correction de texte. Analyse le texte de l'utilisateur et fournis deux sections distinctes séparées par le délimiteur "---SUGGESTIONS---".
 
 SECTION 1 (CORRECTIONS) : Liste uniquement les erreurs d'orthographe, de grammaire et de ponctuation de manière extrêmement courte et factuelle sous forme de bullet points. Si aucune erreur n'est détectée, écris uniquement "Aucune erreur détectée".
@@ -82,6 +84,7 @@ Format de réponse attendu :
 
 const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrentPage: (p: Page) => void }) => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<Page | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -91,12 +94,26 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navItems: { id: Page; label: string; icon?: any; hasDropdown?: boolean }[] = [
+  const navItems: { id: Page; label: string; icon?: any; dropdownItems?: { id: Page; label: string }[] }[] = [
     { id: 'correcteur', label: 'Correcteur' },
     { id: 'cartographie', label: 'Cartographie' },
-    { id: 'analyste', label: 'Analyste', hasDropdown: true },
-    { id: 'indices', label: 'Indices', hasDropdown: true },
+    { id: 'analyste', label: 'Analyste' },
+    { 
+      id: 'indices', 
+      label: 'Indices', 
+      dropdownItems: [
+        { id: 'indice-social', label: 'Indice social enrichi' },
+        { id: 'indice-composite', label: 'Indice composite social' },
+        { id: 'indice-reputationnel', label: 'Indice réputationnel' },
+      ] 
+    },
   ];
+
+  const isItemActive = (item: typeof navItems[0]) => {
+    if (currentPage === item.id) return true;
+    if (item.dropdownItems?.some(sub => sub.id === currentPage)) return true;
+    return false;
+  };
 
   return (
     <nav className={`h-16 px-8 flex items-center justify-between sticky top-0 z-50 transition-all duration-300 ${
@@ -104,18 +121,49 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
     }`}>
       <div className="flex items-center space-x-4">
         {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setCurrentPage(item.id)}
-            className={`px-4 py-1.5 rounded-xl text-[13px] font-bold transition-all duration-200 flex items-center space-x-2 ${
-              currentPage === item.id
-                ? 'bg-secondary text-white'
-                : 'text-secondary hover:bg-primary hover:text-secondary'
-            }`}
+          <div 
+            key={item.id} 
+            className="relative"
+            onMouseEnter={() => item.dropdownItems && setActiveDropdown(item.id)}
+            onMouseLeave={() => setActiveDropdown(null)}
           >
-            <span>{item.label}</span>
-            {item.hasDropdown && <ChevronDown className="w-3.5 h-3.5 opacity-50" />}
-          </button>
+            <button
+              onClick={() => !item.dropdownItems && setCurrentPage(item.id)}
+              className={`px-4 py-1.5 rounded-xl text-[13px] font-bold transition-all duration-200 flex items-center space-x-2 ${
+                isItemActive(item)
+                  ? 'bg-secondary text-white'
+                  : 'text-secondary hover:bg-primary hover:text-secondary'
+              }`}
+            >
+              <span>{item.label}</span>
+              {item.dropdownItems && <ChevronDown className="w-3.5 h-3.5 opacity-50" />}
+            </button>
+
+            {item.dropdownItems && activeDropdown === item.id && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute top-full left-0 mt-1 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 py-3 overflow-hidden"
+              >
+                {item.dropdownItems.map((subItem) => (
+                  <button
+                    key={subItem.id}
+                    onClick={() => {
+                      setCurrentPage(subItem.id);
+                      setActiveDropdown(null);
+                    }}
+                    className={`w-full px-5 py-2.5 text-left text-[12px] font-bold transition-all ${
+                      currentPage === subItem.id
+                        ? 'bg-primary/10 text-secondary'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-secondary'
+                    }`}
+                  >
+                    {subItem.label}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </div>
         ))}
       </div>
 
@@ -379,6 +427,9 @@ export default function App() {
             {currentPage === 'cartographie' && <Cartographie />}
             {currentPage === 'analyste' && <PlaceholderPage title="Analyste" />}
             {currentPage === 'indices' && <PlaceholderPage title="Indices" />}
+            {currentPage === 'indice-social' && <IndicesDashboard title="Indice social enrichi" />}
+            {currentPage === 'indice-composite' && <IndicesDashboard title="Indice composite social" />}
+            {currentPage === 'indice-reputationnel' && <IndicesDashboard title="Indice réputationnel" />}
           </motion.div>
         </AnimatePresence>
       </main>

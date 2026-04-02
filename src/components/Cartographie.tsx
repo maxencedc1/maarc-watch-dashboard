@@ -10,7 +10,7 @@ import EdgeCurveProgram from "@sigma/edge-curve";
 import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink, Layers, Eye, EyeOff, Share2, Filter, Plus, Minus, Sparkles, TrendingUp, LayoutDashboard, ChevronDown, Zap, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 interface Publication {
   id: string;
@@ -876,9 +876,10 @@ export function Cartographie() {
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-flash-lite-preview",
         contents: `Voici une liste de publications d'un cluster spécifique dans un réseau social :\n\n${pubsText}\n\nFais une synthèse concise (environ 150-200 mots) de ce qui se dit dans ce cluster. Identifie les thèmes principaux, le ton général et les acteurs clés si possible. Réponds en français au format Markdown.`,
         config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
           systemInstruction: "Tu es un analyste expert en réseaux sociaux. Ta mission est de synthétiser des flux de publications pour en extraire l'essence stratégique.",
         }
       });
