@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Youtube, MessageSquare, Brain, Loader2, AlertCircle, Sparkles, RotateCcw, Plus, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, auth } from '../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import ReactMarkdown from 'react-markdown';
 
 const GEMINI_MODEL = "gemini-3-flash-preview";
@@ -78,17 +76,6 @@ export default function YouTubeAnalyser() {
       const data = await response.json();
       const analysisText = data.analysis;
       setAnalysis(analysisText);
-
-      // Save to Firebase if user is logged in
-      if (auth.currentUser) {
-        await addDoc(collection(db, 'youtube_analyses'), {
-          videoId: videoData.id,
-          videoTitle: videoData.title,
-          analysis: analysisText,
-          createdAt: serverTimestamp(),
-          userId: auth.currentUser.uid
-        });
-      }
     } catch (err: any) {
       setError("Erreur lors de l'analyse IA : " + err.message);
     } finally {
