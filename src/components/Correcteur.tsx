@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { Send, Loader2, Trash2, Copy, Check, ShieldCheck, Lightbulb } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -25,40 +24,24 @@ export default function Correcteur() {
     setSuggestions('');
 
     try {
-      // Prioritize the key from the environment, then from the .env file (via Vite's define)
-      const apiKey = (process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || "").trim();
-      
-      console.log("API Key found:", apiKey ? "Yes (starts with " + apiKey.substring(0, 6) + "...)" : "No");
-      
-      if (!apiKey || apiKey === "undefined" || apiKey === "MY_GEMINI_API_KEY" || apiKey === "") {
-        throw new Error("Clé API manquante ou non configurée. Veuillez configurer GEMINI_API_KEY dans les secrets de l'application.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      const result = await ai.models.generateContent({
-        model: selectedModel,
-        contents: [{ role: 'user', parts: [{ text: input }] }],
-        config: {
-          systemInstruction: `Tu es un expert en linguistique et correction de texte. Analyse le texte de l'utilisateur et fournis deux sections distinctes séparées par le délimiteur "---SUGGESTIONS---".
-
-SECTION 1 (CORRECTIONS) : Liste uniquement les erreurs d'orthographe, de grammaire et de ponctuation de manière extrêmement courte et factuelle sous forme de bullet points. Si aucune erreur n'est détectée, écris uniquement "Aucune erreur détectée".
-
-SECTION 2 (SUGGESTIONS) : Propose une nouvelle version intégrale du texte de l'utilisateur. 
-IMPORTANT : 
-- Ne donne AUCUNE explication, introduction ou commentaire. 
-- Propose directement le texte réécrit de manière plus fluide et élégante.
-- Ne change pas la nature ou le sens du texte initial.
-- N'ajoute aucun élément d'information nouveau.
-- Si le texte est déjà optimal, réécris-le tel quel.
-
-Format de réponse attendu :
-[Bullet points des corrections]
----SUGGESTIONS---
-[Texte intégral réécrit]`,
-        }
+      const response = await fetch('/api/correcteur/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          input: input,
+          model: selectedModel,
+        }),
       });
 
-      const fullText = result.text || "";
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erreur lors de l'analyse");
+      }
+
+      const data = await response.json();
+      const fullText = data.analysis || "";
       if (!fullText) throw new Error("Réponse vide de l'IA");
 
       setRequestCount(prev => prev + 1);

@@ -10,7 +10,25 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '5mb' }));
+
+  // Helper to get and validate Gemini API key
+  const getGeminiApiKey = () => {
+    // Priority: GEMINI_API_KEY (platform standard)
+    let key = (process.env.GEMINI_API_KEY || "").trim();
+    
+    // Fallback: Check if it's under a different common name in this environment
+    if (!key || key === "undefined" || key === "MY_GEMINI_API_KEY") {
+      key = (process.env.API_KEY || "").trim();
+    }
+
+    if (!key || key === "undefined" || key === "MY_GEMINI_API_KEY") {
+      console.error("CRITICAL: No valid Gemini API key found in environment variables.");
+      return null;
+    }
+    
+    return key;
+  };
 
   // API route to fetch YouTube video info and comments
   app.get("/api/youtube/video", async (req, res) => {
@@ -91,9 +109,9 @@ async function startServer() {
     }
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = getGeminiApiKey();
       if (!apiKey) {
-        return res.status(500).json({ error: "Gemini API key not configured on server" });
+        return res.status(500).json({ error: "Clé API Gemini non configurée ou invalide sur le serveur. Veuillez la configurer dans les secrets de l'application." });
       }
 
       const { GoogleGenAI } = await import("@google/genai");
@@ -117,6 +135,103 @@ async function startServer() {
     } catch (error: any) {
       console.error("Gemini Analysis Error:", error);
       res.status(500).json({ error: error.message || "Failed to analyze comments" });
+    }
+  });
+
+  // API route for Correcteur
+  app.post("/api/correcteur/analyze", async (req, res) => {
+    const { input, model } = req.body;
+
+    if (!input || typeof input !== "string") {
+      return res.status(400).json({ error: "Texte manquant ou invalide" });
+    }
+
+    try {
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        return res.status(500).json({ error: "Clé API Gemini non configurée ou invalide sur le serveur. Veuillez la configurer dans les secrets de l'application." });
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const prompt = input;
+      const systemInstruction = `Tu es un expert en linguistique et correction de texte. Analyse le texte de l'utilisateur et fournis deux sections distinctes séparées par le délimiteur "---SUGGESTIONS---".
+
+SECTION 1 (CORRECTIONS) : Liste uniquement les erreurs d'orthographe, de grammaire et de ponctuation de manière extrêmement courte et factuelle sous forme de bullet points. Si aucune erreur n'est détectée, écris uniquement "Aucune erreur détectée".
+
+SECTION 2 (SUGGESTIONS) : Propose une nouvelle version intégrale du texte de l'utilisateur. 
+IMPORTANT : 
+- Ne donne AUCUNE explication, introduction ou commentaire. 
+- Propose directement le texte réécrit de manière plus fluide et élégante.
+- Ne change pas la nature ou le sens du texte initial.
+- N'ajoute aucun élément d'information nouveau.
+- Si le texte est déjà optimal, réécris-le tel quel.
+
+Format de réponse attendu :
+[Bullet points des corrections]
+---SUGGESTIONS---
+[Texte intégral réécrit]`;
+
+      const response = await ai.models.generateContent({
+        model: model || "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          systemInstruction: systemInstruction,
+        }
+      });
+
+      res.json({ analysis: response.text || "Désolé, l'analyse a échoué." });
+    } catch (error: any) {
+      console.error("Correcteur Analysis Error:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze text" });
+    }
+  });
+
+  // API route for Cartographie synthesis
+  app.post("/api/cartographie/synthesize", async (req, res) => {
+    const { pubsText } = req.body;
+
+    if (!pubsText || typeof pubsText !== "string") {
+      return res.status(400).json({ error: "Texte des publications manquant ou invalide" });
+    }
+
+    try {
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        return res.status(500).json({ error: "Clé API Gemini non configurée ou invalide sur le serveur. Veuillez la configurer dans les secrets de l'application." });
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Ta mission est de synthétiser les conversations au sein d'un "cluster" (une communauté d'influence cohérente) pour en extraire la substantifique moelle stratégique. 
+Objectif : Produire une synthèse brève, claire et précise qui répond à la question : "Que se dit-il et qui mène la danse dans ce groupe ?"
+Instructions de rédaction :
+- IMPORTANT : Ne commence JAMAIS par une phrase d'introduction comme "Voici la synthèse..." ou "Voici ce qui se dit...". Entre DIRECTEMENT dans le vif du sujet avec le titre.
+- Angle d'attaque : Identifie le "narratif maître" du cluster (ex: indignation morale, critique technique, soutien institutionnel).
+- Synthèse par Bullet Points : Détaille les 3 à 5 thématiques ou arguments principaux qui circulent.
+- Attribution : Intègre systématiquement entre parenthèses le nom de l'auteur ou du média lorsqu'une prise de position est structurante ou très virale (ex: @Auteur).
+- Ton & Intensité : Précise le climat émotionnel (ironie, colère, mobilisation) et si des appels à l'action sont formulés (appels au boycott, pétitions, interpellations de politiques).
+
+Format de sortie (en Markdown) :
+- Titre : Nommer le cluster (ex: "# LE PÔLE MILITANT ACTIVISTE"). Utilise un titre de niveau 1 (#).
+- L'Essentiel : Le résumé ultra-condensé en 1 phrase max. Utilise du **gras** pour les termes clés.
+- Analyse : Liste à puces Markdown (utilisant "- ") avec les attributions. Chaque argument ou paragraphe DOIT être un élément de liste distinct. Utilise du **gras** pour souligner les points saillants.
+- Signal Faible : Une information ou un argument émergent qui pourrait sortir du cluster. Utilise du **gras**.
+
+IMPORTANT : Saute TOUJOURS une ligne vide entre chaque section pour garantir une lecture aérée.
+
+Publications :
+${pubsText}`,
+      });
+
+      res.json({ synthesis: response.text || "Désolé, la synthèse a échoué." });
+    } catch (error: any) {
+      console.error("Cartographie Synthesis Error:", error);
+      res.status(500).json({ error: error.message || "Failed to synthesize cluster" });
     }
   });
 

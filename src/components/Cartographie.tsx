@@ -9,7 +9,6 @@ import circular from 'graphology-layout/circular';
 import EdgeCurveProgram from "@sigma/edge-curve";
 import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink, Layers, Eye, EyeOff, Share2, Filter, Plus, Minus, Sparkles, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
 import Markdown from 'react-markdown';
 
 interface Publication {
@@ -868,36 +867,25 @@ export default function Cartographie() {
       
       const pubsText = communityPubs.map(p => `- ${p.author}: ${p.content}`).join('\n');
       
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const model = ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Ta mission est de synthétiser les conversations au sein d'un "cluster" (une communauté d'influence cohérente) pour en extraire la substantifique moelle stratégique. 
-Objectif : Produire une synthèse brève, claire et précise qui répond à la question : "Que se dit-il et qui mène la danse dans ce groupe ?"
-Instructions de rédaction :
-- IMPORTANT : Ne commence JAMAIS par une phrase d'introduction comme "Voici la synthèse..." ou "Voici ce qui se dit...". Entre DIRECTEMENT dans le vif du sujet avec le titre.
-- Angle d'attaque : Identifie le "narratif maître" du cluster (ex: indignation morale, critique technique, soutien institutionnel).
-- Synthèse par Bullet Points : Détaille les 3 à 5 thématiques ou arguments principaux qui circulent.
-- Attribution : Intègre systématiquement entre parenthèses le nom de l'auteur ou du média lorsqu'une prise de position est structurante ou très virale (ex: @Auteur).
-- Ton & Intensité : Précise le climat émotionnel (ironie, colère, mobilisation) et si des appels à l'action sont formulés (appels au boycott, pétitions, interpellations de politiques).
-
-Format de sortie (en Markdown) :
-- Titre : Nommer le cluster (ex: "# LE PÔLE MILITANT ACTIVISTE"). Utilise un titre de niveau 1 (#).
-- L'Essentiel : Le résumé ultra-condensé en 1 phrase max. Utilise du **gras** pour les termes clés.
-- Analyse : Liste à puces Markdown (utilisant "- ") avec les attributions. Chaque argument ou paragraphe DOIT être un élément de liste distinct. Utilise du **gras** pour souligner les points saillants.
-- Signal Faible : Une information ou un argument émergent qui pourrait sortir du cluster. Utilise du **gras**.
-
-IMPORTANT : Saute TOUJOURS une ligne vide entre chaque section pour garantir une lecture aérée.
-
-Publications :
-${pubsText}`,
+      const response = await fetch('/api/cartographie/synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pubsText }),
       });
-      
-      const response = await model;
-      setSynthesis(response.text || "Erreur lors de la génération de la synthèse.");
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erreur lors de la synthèse");
+      }
+
+      const data = await response.json();
+      setSynthesis(data.synthesis || "Erreur lors de la génération de la synthèse.");
       setIsSynthesisExpanded(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Synthesis error:", err);
-      setSynthesis("Une erreur est survenue lors de la génération de la synthèse par l'IA.");
+      setSynthesis(`Une erreur est survenue lors de la génération de la synthèse : ${err.message}`);
       setIsSynthesisExpanded(true);
     } finally {
       setIsSynthesizing(false);
