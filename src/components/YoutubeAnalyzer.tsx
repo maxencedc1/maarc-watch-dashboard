@@ -57,15 +57,15 @@ export function YoutubeAnalyzer() {
   const [isSynthesisExpanded, setIsSynthesisExpanded] = useState(false);
 
   const extractVideoId = (url: string) => {
-    const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[7].length === 11) ? match[7] : null;
+    const regex = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+    const match = url.match(regex);
+    return (match && match[2].length === 11) ? match[2] : null;
   };
 
   const handleAnalyze = async () => {
     const videoId = extractVideoId(url);
     if (!videoId) {
-      setError("URL YouTube invalide.");
+      setError("URL YouTube invalide. Veuillez vérifier le lien.");
       return;
     }
 
@@ -78,9 +78,14 @@ export function YoutubeAnalyzer() {
     try {
       // 1. Fetch Video Info via Backend Proxy
       const videoRes = await fetch(`/api/youtube/video?videoId=${videoId}`);
+      
+      if (!videoRes.ok) {
+        const errorData = await videoRes.json();
+        throw new Error(errorData.error || `Erreur serveur (${videoRes.status})`);
+      }
+      
       const videoData = await videoRes.json();
       
-      if (videoData.error) throw new Error(videoData.error);
       if (!videoData.items?.length) throw new Error("Vidéo non trouvée.");
 
       const item = videoData.items[0];
@@ -93,14 +98,13 @@ export function YoutubeAnalyzer() {
 
       // 2. Fetch Comments via Backend Proxy
       const commentsRes = await fetch(`/api/youtube/comments?videoId=${videoId}`);
-      const commentsData = await commentsRes.json();
-
-      if (commentsData.error) {
-        if (commentsData.error.errors?.[0]?.reason === 'commentsDisabled') {
-          throw new Error("Les commentaires sont désactivés pour cette vidéo.");
-        }
-        throw new Error(commentsData.error);
+      
+      if (!commentsRes.ok) {
+        const errorData = await commentsRes.json();
+        throw new Error(errorData.error || `Erreur serveur (${commentsRes.status})`);
       }
+      
+      const commentsData = await commentsRes.json();
 
       const fetchedComments: Comment[] = (commentsData.items || []).map((item: any) => ({
         id: item.id,

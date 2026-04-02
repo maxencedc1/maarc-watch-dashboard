@@ -21,15 +21,28 @@ async function startServer() {
     const { videoId } = req.query;
     const apiKey = process.env.YOUTUBE_API_KEY;
 
+    if (!videoId) {
+      return res.status(400).json({ error: "videoId is required" });
+    }
+
     if (!apiKey) {
+      console.error("YOUTUBE_API_KEY is missing in environment variables");
       return res.status(500).json({ error: "YOUTUBE_API_KEY is not configured on the server." });
     }
 
     try {
-      const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${apiKey}`);
+      const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${apiKey}`;
+      const response = await fetch(apiUrl);
       const data = await response.json();
+      
+      if (data.error) {
+        console.error("YouTube API Video Error:", data.error);
+        return res.status(data.error.code || 500).json({ error: data.error.message });
+      }
+      
       res.json(data);
     } catch (error: any) {
+      console.error("Server Proxy Video Error:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -38,15 +51,28 @@ async function startServer() {
     const { videoId } = req.query;
     const apiKey = process.env.YOUTUBE_API_KEY;
 
+    if (!videoId) {
+      return res.status(400).json({ error: "videoId is required" });
+    }
+
     if (!apiKey) {
+      console.error("YOUTUBE_API_KEY is missing in environment variables");
       return res.status(500).json({ error: "YOUTUBE_API_KEY is not configured on the server." });
     }
 
     try {
-      const response = await fetch(`https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=50&key=${apiKey}`);
+      const apiUrl = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=50&key=${apiKey}`;
+      const response = await fetch(apiUrl);
       const data = await response.json();
+
+      if (data.error) {
+        console.error("YouTube API Comments Error:", data.error);
+        return res.status(data.error.code || 500).json({ error: data.error.message });
+      }
+
       res.json(data);
     } catch (error: any) {
+      console.error("Server Proxy Comments Error:", error);
       res.status(500).json({ error: error.message });
     }
   });
