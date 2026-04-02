@@ -16,6 +16,41 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // YouTube API Proxy
+  app.get("/api/youtube/video", async (req, res) => {
+    const { videoId } = req.query;
+    const apiKey = process.env.YOUTUBE_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "YOUTUBE_API_KEY is not configured on the server." });
+    }
+
+    try {
+      const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${apiKey}`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/youtube/comments", async (req, res) => {
+    const { videoId } = req.query;
+    const apiKey = process.env.YOUTUBE_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "YOUTUBE_API_KEY is not configured on the server." });
+    }
+
+    try {
+      const response = await fetch(`https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=50&key=${apiKey}`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

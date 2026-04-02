@@ -69,12 +69,6 @@ export function YoutubeAnalyzer() {
       return;
     }
 
-    const apiKey = process.env.YOUTUBE_API_KEY;
-    if (!apiKey) {
-      setError("Clé API YouTube manquante. Veuillez la configurer dans les paramètres.");
-      return;
-    }
-
     setIsAnalyzing(true);
     setHasResult(false);
     setError(null);
@@ -82,11 +76,11 @@ export function YoutubeAnalyzer() {
     setIsSynthesisExpanded(false);
     
     try {
-      // 1. Fetch Video Info
-      const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${apiKey}`);
+      // 1. Fetch Video Info via Backend Proxy
+      const videoRes = await fetch(`/api/youtube/video?videoId=${videoId}`);
       const videoData = await videoRes.json();
       
-      if (videoData.error) throw new Error(videoData.error.message);
+      if (videoData.error) throw new Error(videoData.error);
       if (!videoData.items?.length) throw new Error("Vidéo non trouvée.");
 
       const item = videoData.items[0];
@@ -97,15 +91,15 @@ export function YoutubeAnalyzer() {
         thumbnail: item.snippet.thumbnails.maxres?.url || item.snippet.thumbnails.high.url
       });
 
-      // 2. Fetch Comments
-      const commentsRes = await fetch(`https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=50&key=${apiKey}`);
+      // 2. Fetch Comments via Backend Proxy
+      const commentsRes = await fetch(`/api/youtube/comments?videoId=${videoId}`);
       const commentsData = await commentsRes.json();
 
       if (commentsData.error) {
         if (commentsData.error.errors?.[0]?.reason === 'commentsDisabled') {
           throw new Error("Les commentaires sont désactivés pour cette vidéo.");
         }
-        throw new Error(commentsData.error.message);
+        throw new Error(commentsData.error);
       }
 
       const fetchedComments: Comment[] = (commentsData.items || []).map((item: any) => ({
