@@ -31,63 +31,55 @@ import { IndicesDashboard } from './components/Indices';
 type Page = 'correcteur' | 'cartographie' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
 
 interface CorrectionResult {
-  errors: string[];
-  optimizedText: string;
+  errors?: string[];
+  optimizedText?: string;
 }
 
 // --- Gemini Service ---
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-async function analyzeText(text: string): Promise<CorrectionResult> {
+async function getCorrections(text: string): Promise<string[]> {
   const response = await ai.models.generateContent({
     model: "gemini-3.1-flash-lite-preview",
     contents: `Texte de l'utilisateur : "${text}"`,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-      systemInstruction: `Tu es un assistant expert pour l'agence Maarc. Tu dois effectuer deux tâches distinctes sur le texte fourni, séparées par le délimiteur "---SUGGESTIONS---".
-
-TÂCHE 1 : CORRECTEUR
-Rôle : Tu es un correcteur orthotypographique et un expert en syntaxe française.
-Mission : Analyse le texte fourni par l'utilisateur pour identifier les fautes d'orthographe, de grammaire, de ponctuation et les lourdeurs de syntaxe.
-Format de sortie : Liste uniquement les erreurs sous forme de bullet points en respectant strictement ce format : "segment de texte erroné" => suggestion de correction.
+      systemInstruction: `Tu es un assistant expert pour l'agence Maarc. Tu es un correcteur orthotypographique et un expert en syntaxe française.
+Mission : Analyse le texte fourni par l'utilisateur pour identifier UNIQUEMENT les fautes d'orthographe, de grammaire, et de ponctuation.
+Format de sortie : Liste uniquement les erreurs sous forme de bullet points en respectant strictement ce format : "erreur" => correction.
 Instructions impératives :
+- INTERDICTION FORMELLE de proposer des reformulations stylistiques, des améliorations de fluidité ou des changements de ton.
+- Ne corrige que les fautes factuelles et objectives.
 - Ne fais aucun commentaire d'introduction ou de conclusion.
-- Si aucune erreur n'est trouvée, réponds : "Aucune erreur détectée."
-- Dans le texte d'origine (boite "votre texte à vérifier"), identifie précisément les segments à mettre en surbrillance.
+- Si aucune erreur n'est trouvée, réponds : "Aucune erreur détectée."`,
+    }
+  });
 
-TÂCHE 2 : SUGGESTIONS
-Rôle : Tu es un rédacteur senior spécialisé dans la communication. Ta plume est sobre, analytique, directe et efficace.
+  const errorsPart = response.text || "";
+  return errorsPart
+    .split('\n')
+    .map(line => line.replace(/^[•\-\*\s]+/, '').trim())
+    .filter(line => line.length > 0 && !line.toLowerCase().includes("aucune erreur détectée"));
+}
+
+async function getSuggestions(text: string): Promise<string> {
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: `Texte de l'utilisateur : "${text}"`,
+    config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+      systemInstruction: `Tu es un assistant expert pour l'agence Maarc. Tu es un consultant senior spécialisé dans la communication. Ta plume est sobre, analytique, directe et efficace. Ton rôle est de fournir des analyses du traitement médiatique d'un sujet.
 Mission : Réécris le texte fourni pour le rendre plus synthétique et plus fluide.
 Contraintes strictes :
 - Fidélité absolue : N'ajoute AUCUNE information extérieure, aucun contexte supplémentaire et aucune donnée non mentionnée dans le texte d'origine (Zéro hallucination).
 - Style : Évite les tournures pompeuses, les adjectifs mélodramatiques et les clichés de l'IA (ex: "au cœur de", "véritable défi", "il est crucial de"). Utilise un ton professionnel, neutre et moderne.
 - Concision : Le texte final doit être plus court ou égal au texte d'origine. Supprime les répétitions et les périphrases inutiles.
 - Mise en page : Conserve rigoureusement la structure du texte source : Garde les titres et les sauts de ligne / Respecte les abréviations de noms (ex: P. Nom) / Garde impérativement les citations entre guillemets.
-Résultat attendu : Donne uniquement le texte reformulé, sans introduction (ex: ne dis pas "Voici le texte reformulé :").
-
-Format de réponse impératif :
-[Résultat TÂCHE 1]
----SUGGESTIONS---
-[Résultat TÂCHE 2]`,
+Résultat attendu : Donne uniquement le texte reformulé, sans introduction.`,
     }
   });
 
-  const fullText = response.text || "";
-  const parts = fullText.split("---SUGGESTIONS---");
-  
-  const errorsPart = parts[0]?.trim() || "";
-  const optimizedText = parts[1]?.trim() || text;
-
-  // Convert bullet points to array
-  const errors = errorsPart
-    .split('\n')
-    .map(line => line.replace(/^[•\-\*\s]+/, '').trim())
-    .filter(line => line.length > 0 && !line.toLowerCase().includes("aucune erreur détectée"));
-
-  return {
-    errors: errors.length > 0 ? errors : [],
-    optimizedText
-  };
+  return response.text?.trim() || text;
 }
 
 // --- Components ---
@@ -216,28 +208,45 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
 
 const CorrecteurPage = () => {
   const [inputText, setInputText] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<CorrectionResult | null>(null);
+  const [isAnalyzingCorrections, setIsAnalyzingCorrections] = useState(false);
+  const [isAnalyzingSuggestions, setIsAnalyzingSuggestions] = useState(false);
+  const [errors, setErrors] = useState<string[] | null>(null);
+  const [optimizedText, setOptimizedText] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
 
-  const handleAnalyze = async () => {
+  const handleGetCorrections = async () => {
     if (!inputText.trim()) return;
-    setResult(null);
-    setIsAnalyzing(true);
+    setErrors(null);
+    setIsAnalyzingCorrections(true);
     try {
-      const data = await analyzeText(inputText);
-      setResult(data);
+      const data = await getCorrections(inputText);
+      setErrors(data);
     } catch (error) {
       console.error(error);
     } finally {
-      setIsAnalyzing(false);
+      setIsAnalyzingCorrections(false);
+    }
+  };
+
+  const handleGetSuggestions = async () => {
+    if (!inputText.trim()) return;
+    setOptimizedText(null);
+    setIsAnalyzingSuggestions(true);
+    try {
+      const data = await getSuggestions(inputText);
+      setOptimizedText(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsAnalyzingSuggestions(false);
     }
   };
 
   const handleReset = () => {
     setInputText('');
-    setResult(null);
+    setErrors(null);
+    setOptimizedText(null);
   };
 
   const syncScroll = () => {
@@ -248,11 +257,11 @@ const CorrecteurPage = () => {
 
   // Function to highlight errors in the input text
   const renderHighlightedText = () => {
-    if (!result || result.errors.length === 0) return inputText;
+    if (!errors || errors.length === 0) return inputText;
 
     // Extract the "segment de texte erroné" from the errors
     // Format is: "segment" => suggestion
-    const errorSegments = result.errors
+    const errorSegments = errors
       .map(err => {
         const match = err.match(/^"(.*?)"\s*=>/);
         return match ? match[1] : null;
@@ -366,15 +375,15 @@ const CorrecteurPage = () => {
 
           <div className="p-6 bg-white flex justify-end">
             <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || !inputText.trim()}
+              onClick={handleGetCorrections}
+              disabled={isAnalyzingCorrections || !inputText.trim()}
               className={`w-full py-3 rounded-2xl font-black tracking-widest uppercase transition-all flex items-center justify-center space-x-3 ${
-                inputText.trim() && !isAnalyzing
+                inputText.trim() && !isAnalyzingCorrections
                   ? 'bg-primary text-secondary shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]'
                   : 'bg-gray-50 text-slate-300'
               }`}
             >
-              {isAnalyzing ? (
+              {isAnalyzingCorrections ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Shield className="w-4 h-4" />
@@ -397,21 +406,21 @@ const CorrecteurPage = () => {
               </h2>
             </div>
             <div className="flex-1 p-6 overflow-y-auto">
-              {!result && !isAnalyzing && (
+              {!errors && !isAnalyzingCorrections && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-2">
                   <Shield className="w-5 h-5 opacity-20" />
                   <p className="text-[12px] font-medium uppercase tracking-widest">Corrections factuelles</p>
                 </div>
               )}
-              {isAnalyzing && (
+              {isAnalyzingCorrections && (
                 <div className="h-full flex items-center justify-center">
                   <Loader2 className="w-8 h-8 text-[var(--color-5)]/20 animate-spin" />
                 </div>
               )}
-              {result && (
+              {errors && (
                 <ul className="space-y-3">
-                  {result.errors.length > 0 ? (
-                    result.errors.map((error, idx) => (
+                  {errors.length > 0 ? (
+                    errors.map((error, idx) => (
                       <motion.li 
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -436,33 +445,45 @@ const CorrecteurPage = () => {
 
           {/* Suggestions Box */}
           <div className="bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex flex-col h-[238px]">
-            <div className="h-14 px-6 border-b border-[var(--color-6)]/10 flex items-center space-x-2 bg-[var(--color-6)]/5">
-              <div className="w-6 h-6 bg-[var(--color-6)]/10 rounded-lg flex items-center justify-center">
-                <Lightbulb className="w-3.5 h-3.5 text-[var(--color-6)]" />
+            <div className="h-14 px-6 border-b border-[var(--color-6)]/10 flex items-center justify-between bg-[var(--color-6)]/5">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 bg-[var(--color-6)]/10 rounded-lg flex items-center justify-center">
+                  <Lightbulb className="w-3.5 h-3.5 text-[var(--color-6)]" />
+                </div>
+                <h2 className="text-[12px] font-black text-[var(--color-6)] tracking-widest uppercase">
+                  Suggestions
+                </h2>
               </div>
-              <h2 className="text-[12px] font-black text-[var(--color-6)] tracking-widest uppercase">
-                Suggestions
-              </h2>
+
+              {inputText.trim() && !isAnalyzingSuggestions && (
+                <button
+                  onClick={handleGetSuggestions}
+                  className="px-3 py-1.5 bg-[var(--color-6)]/10 hover:bg-[var(--color-6)]/20 text-[var(--color-6)] rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center space-x-2"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>{optimizedText ? 'Régénérer' : 'Suggérer'}</span>
+                </button>
+              )}
             </div>
             <div className="flex-1 p-6 overflow-y-auto relative flex flex-col">
-              {!result && !isAnalyzing && (
+              {!optimizedText && !isAnalyzingSuggestions && (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-300 space-y-2">
                   <Lightbulb className="w-5 h-5 opacity-20" />
                   <p className="text-[12px] font-medium uppercase tracking-widest">Version optimisée</p>
                 </div>
               )}
-              {isAnalyzing && (
+              {isAnalyzingSuggestions && (
                 <div className="flex-1 flex items-center justify-center">
                   <Loader2 className="w-8 h-8 text-[var(--color-6)]/20 animate-spin" />
                 </div>
               )}
-              {result && (
+              {optimizedText && !isAnalyzingSuggestions && (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="flex-1 text-[14px] text-secondary/80 leading-relaxed font-medium whitespace-pre-wrap"
                 >
-                  {Diff.diffWords(inputText, result.optimizedText).map((part, index) => (
+                  {Diff.diffWords(inputText, optimizedText).map((part, index) => (
                     <span 
                       key={index} 
                       className={part.added ? "bg-emerald-100 text-emerald-900 rounded-sm px-0.5" : part.removed ? "hidden" : ""}
