@@ -150,8 +150,8 @@ export function IndicesDashboard({ title = "Score de visibilité sociale enrichi
           <div className="relative">
             <div className="absolute -inset-1 bg-gradient-to-tr from-primary via-primary/50 to-transparent rounded-2xl blur-md opacity-30 animate-pulse" />
             <div className="relative w-14 h-14 bg-secondary rounded-2xl flex items-center justify-center shadow-2xl border border-white/10 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <TrendingUp className="w-7 h-7 text-primary drop-shadow-[0_0_8px_rgba(251,195,60,0.4)]" />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
+              <TrendingUp className="w-7 h-7 drop-shadow-[0_0_8px_rgba(251,195,60,0.4)]" style={{ stroke: "url(#maarc-gradient)" }} />
             </div>
           </div>
           <div>

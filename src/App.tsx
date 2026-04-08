@@ -32,51 +32,63 @@ type Page = 'correcteur' | 'cartographie' | 'indices' | 'indice-social' | 'indic
 interface CorrectionResult {
   errors: string[];
   optimizedText: string;
+  highlightedText: string;
 }
 
 // --- Gemini Service ---
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 async function analyzeText(text: string): Promise<CorrectionResult> {
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
-    contents: `Texte de l'utilisateur : "${text}"`,
+  // Call 1: Correcteur (Diagnostic)
+  const correcteurResponse = await ai.models.generateContent({
+    model: "gemini-1.5-flash",
+    contents: `Texte à analyser : "${text}"`,
     config: {
-      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-      systemInstruction: `Tu es un expert en linguistique et correction de texte. Analyse le texte de l'utilisateur et fournis deux sections distinctes séparées par le délimiteur "---SUGGESTIONS---".
+      systemInstruction: `Rôle : Tu es un correcteur orthotypographique et un expert en syntaxe française.
+Mission : Analyse le texte fourni par l'utilisateur pour identifier les fautes d'orthographe, de grammaire, de ponctuation et les lourdeurs de syntaxe.
+Format de sortie : 
+SECTION 1: Liste uniquement les erreurs sous forme de bullet points en respectant strictement ce format : "segment de texte erroné" => suggestion de correction.
+SECTION 2: Le texte d'origine intégral avec les erreurs mises en surbrillance à l'aide de balises <mark class="bg-primary/30 text-secondary rounded-sm px-0.5">...</mark>.
+Sépare les deux sections par le délimiteur exact : "---HIGHLIGHT---".
 
-SECTION 1 (CORRECTIONS) : Liste uniquement les erreurs d'orthographe, de grammaire et de ponctuation de manière extrêmement courte et factuelle sous forme de bullet points. Si aucune erreur n'est détectée, écris uniquement "Aucune erreur détectée".
-
-SECTION 2 (SUGGESTIONS) : Propose une nouvelle version intégrale du texte de l'utilisateur. 
-IMPORTANT : 
-- Ne donne AUCUNE explication, introduction ou commentaire. 
-- Propose directement le texte réécrit de manière plus fluide et élégante.
-- Ne change pas la nature ou le sens du texte initial.
-- N'ajoute aucun élément d'information nouveau.
-- Si le texte est déjà optimal, réécris-le tel quel.
-
-Format de réponse attendu :
-[Bullet points des corrections]
----SUGGESTIONS---
-[Texte intégral réécrit]`,
+Instructions impératives :
+- Ne fais aucun commentaire d'introduction ou de conclusion.
+- Si aucune erreur n'est trouvée, réponds : "Aucune erreur détectée." pour la SECTION 1.`,
     }
   });
 
-  const fullText = response.text || "";
-  const parts = fullText.split("---SUGGESTIONS---");
-  
-  const errorsPart = parts[0]?.trim() || "";
-  const optimizedText = parts[1]?.trim() || text;
+  // Call 2: Suggestions (Redacteur Senior)
+  const suggestionsResponse = await ai.models.generateContent({
+    model: "gemini-1.5-flash",
+    contents: `Texte à réécrire : "${text}"`,
+    config: {
+      systemInstruction: `Rôle : Tu es un rédacteur senior spécialisé dans la communication. Ta plume est sobre, directe et efficace.
+Mission : Réécris le texte fourni pour le rendre plus synthétique et plus fluide.
+Contraintes strictes :
+- Fidélité absolue : N'ajoute AUCUNE information extérieure, aucun contexte supplémentaire et aucune donnée non mentionnée dans le texte d'origine (Zéro hallucination).
+- Style : Évite les tournures pompeuses, les adjectifs mélodramatiques et les clichés de l'IA (ex: "au cœur de", "véritable défi", "il est crucial de"). Utilise un ton professionnel, neutre et moderne.
+- Concision : Le texte final doit être plus court ou égal au texte d'origine. Supprime les répétitions et les périphrases inutiles.
+- Mise en page : Conserve rigoureusement la structure du texte source : Garde les titres et les sauts de ligne / Respecte les abréviations de noms (ex: P. Nom) / Garde impérativement les citations entre guillemets.
+Résultat attendu : Donne uniquement le texte reformulé, sans introduction (ex: ne dis pas "Voici le texte reformulé :").`,
+    }
+  });
 
-  // Convert bullet points to array
+  const correcteurText = correcteurResponse.text || "";
+  const optimizedText = suggestionsResponse.text || text;
+
+  const parts = correcteurText.split("---HIGHLIGHT---");
+  const errorsPart = parts[0]?.trim() || "";
+  const highlightedText = parts[1]?.trim() || text;
+
   const errors = errorsPart
     .split('\n')
     .map(line => line.replace(/^[•\-\*\s]+/, '').trim())
     .filter(line => line.length > 0 && !line.toLowerCase().includes("aucune erreur détectée"));
 
   return {
-    errors: errors.length > 0 ? errors : [],
-    optimizedText
+    errors,
+    optimizedText,
+    highlightedText: highlightedText.includes("Aucune erreur détectée") ? text : highlightedText
   };
 }
 
@@ -208,6 +220,7 @@ const CorrecteurPage = () => {
   const [inputText, setInputText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<CorrectionResult | null>(null);
+  const [showHighlights, setShowHighlights] = useState(true);
 
   const handleAnalyze = async () => {
     if (!inputText.trim()) return;
@@ -216,6 +229,7 @@ const CorrecteurPage = () => {
     try {
       const data = await analyzeText(inputText);
       setResult(data);
+      setShowHighlights(true);
     } catch (error) {
       console.error(error);
     } finally {
@@ -226,6 +240,7 @@ const CorrecteurPage = () => {
   const handleReset = () => {
     setInputText('');
     setResult(null);
+    setShowHighlights(false);
   };
 
   return (
@@ -236,8 +251,8 @@ const CorrecteurPage = () => {
           <div className="relative">
             <div className="absolute -inset-1 bg-gradient-to-tr from-primary via-primary/50 to-transparent rounded-2xl blur-md opacity-30 animate-pulse" />
             <div className="relative w-14 h-14 bg-secondary rounded-2xl flex items-center justify-center shadow-2xl border border-white/10 overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Shield className="w-7 h-7 text-primary drop-shadow-[0_0_8px_rgba(251,195,60,0.4)]" />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
+              <Shield className="w-7 h-7 drop-shadow-[0_0_8px_rgba(251,195,60,0.4)]" style={{ stroke: "url(#maarc-gradient)" }} />
             </div>
           </div>
           <div>
@@ -276,9 +291,21 @@ const CorrecteurPage = () => {
         {/* Input Section */}
         <div className="bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex flex-col h-[500px]">
           <div className="h-14 px-6 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
-            <h2 className="text-[12px] font-black text-slate-400 tracking-widest uppercase">
-              Votre texte à vérifier
-            </h2>
+            <div className="flex items-center space-x-4">
+              <h2 className="text-[12px] font-black text-slate-400 tracking-widest uppercase">
+                Votre texte à vérifier
+              </h2>
+              {result && (
+                <button 
+                  onClick={() => setShowHighlights(!showHighlights)}
+                  className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full transition-all ${
+                    showHighlights ? 'bg-primary text-secondary' : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {showHighlights ? 'Masquer les erreurs' : 'Voir les erreurs'}
+                </button>
+              )}
+            </div>
             
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
@@ -288,12 +315,21 @@ const CorrecteurPage = () => {
             </div>
           </div>
 
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="COLLEZ ICI LE TEXTE QUE VOUS SOUHAITEZ FAIRE CORRIGER ET OPTIMISER PAR L'IA MAARC..."
-            className="flex-1 p-8 resize-none focus:outline-none text-secondary/70 placeholder:text-slate-300 placeholder:font-medium placeholder:text-[12px] placeholder:tracking-widest leading-relaxed text-[16px] font-medium"
-          />
+          <div className="flex-1 relative overflow-hidden">
+            {result && showHighlights ? (
+              <div 
+                className="absolute inset-0 p-8 overflow-y-auto text-secondary/70 leading-relaxed text-[16px] font-medium whitespace-pre-wrap"
+                dangerouslySetInnerHTML={{ __html: result.highlightedText }}
+              />
+            ) : (
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="COLLEZ ICI LE TEXTE QUE VOUS SOUHAITEZ FAIRE CORRIGER ET OPTIMISER PAR L'IA MAARC..."
+                className="w-full h-full p-8 resize-none focus:outline-none text-secondary/70 placeholder:text-slate-300 placeholder:font-medium placeholder:text-[12px] placeholder:tracking-widest leading-relaxed text-[16px] font-medium"
+              />
+            )}
+          </div>
 
           <div className="p-6 bg-white flex justify-end">
             <button
@@ -391,7 +427,7 @@ const CorrecteurPage = () => {
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-[14px] text-secondary/80 leading-relaxed font-medium"
+                  className="text-[14px] text-secondary/80 leading-relaxed font-medium whitespace-pre-wrap"
                 >
                   {result.optimizedText}
                 </motion.div>
@@ -415,7 +451,7 @@ const PlaceholderPage = ({ title }: { title: string }) => (
     <div className="w-24 h-24 bg-white shadow-2xl shadow-secondary/10 rounded-3xl flex items-center justify-center mx-auto mb-10 relative group overflow-hidden border border-slate-100">
       <div className="absolute -inset-4 bg-gradient-to-tr from-primary/20 via-transparent to-primary/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-1000" />
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <LayoutDashboard className="w-10 h-10 text-secondary relative z-10 drop-shadow-sm group-hover:scale-110 transition-transform duration-500" />
+      <LayoutDashboard className="w-10 h-10 relative z-10 drop-shadow-sm group-hover:scale-110 transition-transform duration-500" style={{ stroke: "url(#maarc-gradient)" }} />
     </div>
     <h1 className="text-4xl font-black text-secondary uppercase tracking-tighter mb-4">
       {title} <span className="text-primary">Maarc</span>
@@ -432,6 +468,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans selection:bg-primary/30">
+      {/* Global Gradient Definition for Icons */}
+      <svg width="0" height="0" className="absolute pointer-events-none">
+        <defs>
+          <linearGradient id="maarc-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#FBC33C" />
+            <stop offset="100%" stopColor="#FF5E34" />
+          </linearGradient>
+        </defs>
+      </svg>
       <TopBar currentPage={currentPage} setCurrentPage={setCurrentPage} />
       
       <main className="flex-1">
