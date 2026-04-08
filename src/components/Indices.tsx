@@ -143,7 +143,7 @@ export function IndicesDashboard({ title = "Score de visibilité sociale enrichi
   ] as const;
 
   return (
-    <div className="max-w-[1800px] mx-auto py-10 px-8 flex flex-col gap-8">
+    <div className="max-w-[1800px] mx-auto pt-10 pb-2 px-8 flex flex-col gap-8">
       {/* Header */}
       <header className="mb-2 flex items-center justify-between">
         <div className="flex items-center space-x-5">

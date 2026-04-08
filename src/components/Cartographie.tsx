@@ -1004,7 +1004,7 @@ export function Cartographie() {
   }, [publications, selectedNode, selectedCommunity, graph]);
 
   return (
-    <div className="max-w-[1800px] mx-auto py-10 px-8 flex flex-col gap-8">
+    <div className="max-w-[1800px] mx-auto pt-10 pb-2 px-8 flex flex-col gap-8">
       {/* Header Section */}
       <header className="mb-2 flex items-center justify-between">
         <div className="flex items-center space-x-5">
