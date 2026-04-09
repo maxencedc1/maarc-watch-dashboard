@@ -44,9 +44,8 @@ async function getCorrections(text: string): Promise<string[]> {
     contents: `Texte de l'utilisateur : "${text}"`,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-      systemInstruction: `Tu es un assistant expert pour l'agence Maarc. Tu es un correcteur orthotypographique et un expert en syntaxe française.
-Mission : Analyse le texte fourni par l'utilisateur pour identifier UNIQUEMENT les fautes d'orthographe, de grammaire, et de ponctuation.
-Format de sortie : Liste uniquement les erreurs sous forme de bullet points en respectant strictement ce format : "erreur" => correction.
+      systemInstruction: `Analyse le texte fourni par l'utilisateur pour identifier UNIQUEMENT les fautes d'orthographe, de grammaire, et de ponctuation.
+Liste UNIQUEMENT les erreurs sous forme de bullet points en respectant strictement ce format : "erreur" => correction.
 Instructions impératives :
 - INTERDICTION FORMELLE de proposer des reformulations stylistiques, des améliorations de fluidité ou des changements de ton.
 - Ne corrige que les fautes factuelles et objectives.
