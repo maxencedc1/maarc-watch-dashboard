@@ -61,20 +61,56 @@ Instructions impératives :
     .filter(line => line.length > 0 && !line.toLowerCase().includes("aucune erreur détectée"));
 }
 
-async function getSuggestions(text: string): Promise<string> {
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
-    contents: `Texte de l'utilisateur : "${text}"`,
-    config: {
-      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-      systemInstruction: `Tu es un assistant expert pour l'agence Maarc. Tu es un consultant senior spécialisé dans la communication. Ta plume est sobre, analytique, directe et efficace. Ton rôle est de fournir des analyses du traitement médiatique d'un sujet.
+async function getSuggestions(text: string, style: string = 'Standard'): Promise<string> {
+  let systemInstruction = `Tu es un assistant expert pour l'agence Maarc. Tu es un consultant senior spécialisé dans la communication. Ta plume est sobre, analytique, directe et efficace. Ton rôle est de fournir des analyses du traitement médiatique d'un sujet.
 Mission : Réécris le texte fourni pour le rendre plus synthétique et plus fluide.
 Contraintes strictes :
 - Fidélité absolue : N'ajoute AUCUNE information extérieure, aucun contexte supplémentaire et aucune donnée non mentionnée dans le texte d'origine (Zéro hallucination).
 - Style : Évite les tournures pompeuses, les adjectifs mélodramatiques et les clichés de l'IA (ex: "au cœur de", "véritable défi", "il est crucial de"). Utilise un ton professionnel, neutre et moderne.
 - Concision : Le texte final doit être plus court ou égal au texte d'origine. Supprime les répétitions et les périphrases inutiles.
 - Mise en page : Conserve rigoureusement la structure du texte source : Garde les titres et les sauts de ligne / Respecte les abréviations de noms (ex: P. Nom) / Garde impérativement les citations entre guillemets.
-Résultat attendu : Donne uniquement le texte reformulé, sans introduction.`,
+Résultat attendu : Donne uniquement le texte reformulé, sans introduction.`;
+
+  if (style === 'SIG') {
+    systemInstruction = `Tu es un Expert en Rédaction Institutionnelle pour le Service d'Information du Gouvernement (SIG). Ta mission est de reformuler des analyses médias et réseaux sociaux pour un public de décideurs (ministres, conseillers).
+
+Objectif :
+Simplifier, fluidifier et condenser le texte source. Ta valeur ajoutée réside dans la précision du lexique et la clarté de la synthèse.
+
+Consignes sur l'usage des guillemets et l'analyse :
+Analyse de l'expert : Tu dois utiliser des termes qualificatifs précis pour décrire les tendances (ex: vif intérêt, relégué au second plan, couverture massive). Ces termes, qui relèvent de l'analyse factuelle du SIG, ne doivent pas porter de guillemets.
+
+Citations de tiers : Les guillemets français (« ») sont strictement réservés aux citations directes issues des médias, des réseaux sociaux ou des déclarations d'acteurs (ex: « étape majeure », « chemin de croix »).
+
+Attribution : Utilise des formules telles que « Les journalistes mettent en avant... », « Les rédactions retiennent principalement... » ou « Les observateurs soulignent... ». Évite les formulations passives ou impersonnelles du type « L'analyse du texte... ».
+
+Contraintes de Style et de Forme :
+Neutralité et Ton : Formel, professionnel, neutre et précis. Évite les métaphores (sauf si elles sont citées) et les formules sensationnalistes.
+
+Format des noms : Applique systématiquement le format P. Nom (Initiale du prénom suivie du nom).
+
+Fidélité : Ne pas ajouter d'informations extérieures au texte source et ne pas utiliser de recherche web. Conserve les citations clés du texte initial (médias et réseaux sociaux) pour appuyer l'analyse. Ces citations doivent figurer entre parenthèse. Si tu reprends un verbatim de média, précise celui dont il s'agit en le mettant entre parenthèse.
+
+Structure : Conserver le titre et les intertitres originaux. Un paragraphe par idée ou groupe d'idées connexes. Pas de listes à puces (sauf si présentes dans l'original). Pas de tableaux.
+
+Instructions de sortie :
+Produis directement le texte reformulé sans aucune introduction, conclusion ou explication de tes choix éditoriaux.`;
+  } else if (style === 'Synthétique') {
+    systemInstruction += "\nFocus : Sois extrêmement concis, va droit à l'essentiel.";
+  } else if (style === 'Professionnel') {
+    systemInstruction += "\nFocus : Utilise un ton formel et une syntaxe irréprochable.";
+  } else if (style === 'Direct') {
+    systemInstruction += "\nFocus : Supprime toutes les fioritures, utilise des phrases courtes et percutantes.";
+  } else if (style === 'Analytique') {
+    systemInstruction += "\nFocus : Mets en avant les liens de cause à effet et la structure logique.";
+  }
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: `Texte de l'utilisateur : "${text}"`,
+    config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+      systemInstruction,
     }
   });
 
@@ -217,6 +253,7 @@ const CorrecteurPage = () => {
   const handleGetCorrections = async () => {
     if (!inputText.trim()) return;
     setErrors(null);
+    setOptimizedText(null);
     setIsAnalyzingCorrections(true);
     try {
       const data = await getCorrections(inputText);
@@ -228,12 +265,13 @@ const CorrecteurPage = () => {
     }
   };
 
-  const handleGetSuggestions = async () => {
+  const handleGetSuggestions = async (style: string) => {
     if (!inputText.trim()) return;
+    setErrors(null);
     setOptimizedText(null);
     setIsAnalyzingSuggestions(true);
     try {
-      const data = await getSuggestions(inputText);
+      const data = await getSuggestions(inputText, style);
       setOptimizedText(data);
     } catch (error) {
       console.error(error);
@@ -310,14 +348,6 @@ const CorrecteurPage = () => {
         </div>
 
         <div className="flex items-center space-x-6">
-          <div className="h-12 bg-white border border-gray-100 rounded-2xl px-5 flex items-center space-x-3 shadow-sm">
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] font-black text-slate-300 tracking-wider uppercase">Plan Gratuit</span>
-              <span className="text-xs font-bold text-secondary">0 requêtes / session</span>
-            </div>
-            <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-          </div>
-          
           <button 
             onClick={handleReset}
             className={`h-12 px-8 text-[13px] font-black tracking-widest uppercase rounded-2xl transition-all flex items-center justify-center ${
@@ -393,9 +423,9 @@ const CorrecteurPage = () => {
         </div>
 
         {/* Results Section */}
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col">
           {/* Correcteur Box */}
-          <div className="bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex flex-col h-[238px]">
+          <div className="bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex flex-col h-[500px]">
             <div className="h-14 px-6 border-b border-[var(--color-5)]/10 flex items-center space-x-2 bg-[var(--color-5)]/5">
               <div className="w-6 h-6 bg-[var(--color-5)]/10 rounded-lg flex items-center justify-center">
                 <Shield className="w-3.5 h-3.5 text-[var(--color-5)]" />
@@ -405,97 +435,83 @@ const CorrecteurPage = () => {
               </h2>
             </div>
             <div className="flex-1 p-6 overflow-y-auto">
-              {!errors && !isAnalyzingCorrections && (
+              {!errors && !optimizedText && !isAnalyzingCorrections && !isAnalyzingSuggestions && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-2">
                   <Shield className="w-5 h-5 opacity-20" />
-                  <p className="text-[12px] font-medium uppercase tracking-widest">Corrections factuelles</p>
+                  <p className="text-[12px] font-medium uppercase tracking-widest">Résultats d'analyse</p>
                 </div>
               )}
-              {isAnalyzingCorrections && (
+              
+              {(isAnalyzingCorrections || isAnalyzingSuggestions) && (
                 <div className="h-full flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-[var(--color-5)]/20 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-primary/20 animate-spin" />
                 </div>
               )}
-              {errors && (
-                <ul className="space-y-3">
-                  {errors.length > 0 ? (
-                    errors.map((error, idx) => (
-                      <motion.li 
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.05 }}
-                        key={idx} 
-                        className="flex items-start space-x-3 text-[13px] font-medium text-secondary/80 py-1.5"
-                      >
-                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-5)] shrink-0" />
-                        <span>{error}</span>
-                      </motion.li>
-                    ))
-                  ) : (
-                    <li className="text-[13px] font-bold text-emerald-600 bg-emerald-50/50 p-4 rounded-xl flex items-center space-x-2 border border-emerald-100">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Aucune erreur détectée.</span>
-                    </li>
-                  )}
-                </ul>
-              )}
-            </div>
-          </div>
 
-          {/* Suggestions Box */}
-          <div className="bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex flex-col h-[238px]">
-            <div className="h-14 px-6 border-b border-[var(--color-6)]/10 flex items-center justify-between bg-[var(--color-6)]/5">
-              <div className="flex items-center space-x-2">
-                <div className="w-6 h-6 bg-[var(--color-6)]/10 rounded-lg flex items-center justify-center">
-                  <Lightbulb className="w-3.5 h-3.5 text-[var(--color-6)]" />
+              {errors && !isAnalyzingCorrections && (
+                <div className="mb-6">
+                  <ul className="space-y-3">
+                    {errors.length > 0 ? (
+                      errors.map((error, idx) => (
+                        <motion.li 
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          key={idx} 
+                          className="flex items-start space-x-3 text-[13px] font-medium text-secondary/80 py-1.5"
+                        >
+                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-5)] shrink-0" />
+                          <span>{error}</span>
+                        </motion.li>
+                      ))
+                    ) : (
+                      <li className="text-[13px] font-bold text-emerald-600 bg-emerald-50/50 p-4 rounded-xl flex items-center space-x-2 border border-emerald-100">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Aucune erreur détectée.</span>
+                      </li>
+                    )}
+                  </ul>
                 </div>
-                <h2 className="text-[12px] font-black text-[var(--color-6)] tracking-widest uppercase">
-                  Suggestions
-                </h2>
-              </div>
+              )}
 
-              {inputText.trim() && !isAnalyzingSuggestions && (
-                <button
-                  onClick={handleGetSuggestions}
-                  className="px-3 py-1.5 bg-[var(--color-6)]/10 hover:bg-[var(--color-6)]/20 text-[var(--color-6)] rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center space-x-2"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>{optimizedText ? 'Régénérer' : 'Suggérer'}</span>
-                </button>
-              )}
-            </div>
-            <div className="flex-1 p-6 overflow-y-auto relative flex flex-col">
-              {!optimizedText && !isAnalyzingSuggestions && (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-300 space-y-2">
-                  <Lightbulb className="w-5 h-5 opacity-20" />
-                  <p className="text-[12px] font-medium uppercase tracking-widest">Version optimisée</p>
-                </div>
-              )}
-              {isAnalyzingSuggestions && (
-                <div className="flex-1 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-[var(--color-6)]/20 animate-spin" />
-                </div>
-              )}
               {optimizedText && !isAnalyzingSuggestions && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex-1 text-[14px] text-secondary/80 leading-relaxed font-medium whitespace-pre-wrap"
-                >
-                  {Diff.diffWords(inputText, optimizedText).map((part, index) => (
-                    <span 
-                      key={index} 
-                      className={part.added ? "bg-emerald-100 text-emerald-900 rounded-sm px-0.5" : part.removed ? "hidden" : ""}
-                    >
-                      {part.value}
-                    </span>
-                  ))}
-                </motion.div>
+                <div className="mt-4">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center">
+                    <span className="w-4 h-[1px] bg-slate-200 mr-2" />
+                    Suggestion de reformulation
+                  </h3>
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-[14px] text-secondary/80 leading-relaxed font-medium whitespace-pre-wrap bg-slate-50 p-5 rounded-2xl border border-slate-100"
+                  >
+                    {Diff.diffWords(inputText, optimizedText).map((part, index) => (
+                      <span 
+                        key={index} 
+                        className={part.added ? "bg-emerald-100 text-emerald-900 rounded-sm px-0.5" : part.removed ? "hidden" : ""}
+                      >
+                        {part.value}
+                      </span>
+                    ))}
+                  </motion.div>
+                </div>
               )}
-              <div className="mt-4 pt-4 border-t border-gray-50 text-center">
-                <p className="text-[10px] font-bold text-slate-300">
-                  L'IA peut faire des erreurs. Vérifiez les informations importantes avant toute publication.
-                </p>
+            </div>
+
+            {/* Suggérer Footer */}
+            <div className="p-4 bg-slate-50 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2">
+                {['SIG', 'Synthétique', 'Professionnel', 'Direct', 'Analytique'].map((style) => (
+                  <button
+                    key={style}
+                    onClick={() => handleGetSuggestions(style)}
+                    disabled={isAnalyzingSuggestions || !inputText.trim()}
+                    className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold text-secondary hover:border-primary hover:text-primary transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    <Sparkles className="w-3 h-3 text-primary" />
+                    <span>{style}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
