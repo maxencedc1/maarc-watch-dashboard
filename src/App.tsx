@@ -40,7 +40,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 async function getCorrections(text: string): Promise<string[]> {
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: "gemini-3-flash-preview",
     contents: `Texte de l'utilisateur : "${text}"`,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
@@ -106,7 +106,7 @@ Produis directement le texte reformulé sans aucune introduction, conclusion ou 
   }
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: "gemini-3-flash-preview",
     contents: `Texte de l'utilisateur : "${text}"`,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
