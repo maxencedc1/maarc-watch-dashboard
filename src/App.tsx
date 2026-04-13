@@ -458,15 +458,15 @@ const CorrecteurPage = () => {
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.05 }}
                           key={idx} 
-                          className="flex items-start space-x-3 text-[13px] font-medium text-secondary/80 py-1.5"
+                          className="flex items-start space-x-3 text-[16px] font-sans font-medium leading-relaxed text-secondary/80 py-1.5"
                         >
-                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-5)] shrink-0" />
+                          <div className="mt-2.5 w-1.5 h-1.5 rounded-full bg-[var(--color-5)] shrink-0" />
                           <span>{error}</span>
                         </motion.li>
                       ))
                     ) : (
-                      <li className="text-[13px] font-bold text-emerald-600 bg-emerald-50/50 p-4 rounded-xl flex items-center space-x-2 border border-emerald-100">
-                        <CheckCircle2 className="w-4 h-4" />
+                      <li className="text-[16px] font-sans font-bold text-emerald-600 bg-emerald-50/50 p-4 rounded-xl flex items-center space-x-2 border border-emerald-100">
+                        <CheckCircle2 className="w-5 h-5" />
                         <span>Aucune erreur détectée.</span>
                       </li>
                     )}
@@ -483,16 +483,9 @@ const CorrecteurPage = () => {
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-[14px] text-secondary/80 leading-relaxed font-medium whitespace-pre-wrap bg-slate-50 p-5 rounded-2xl border border-slate-100"
+                    className="text-[16px] font-sans font-medium leading-relaxed text-secondary/80 whitespace-pre-wrap bg-slate-50 p-5 rounded-2xl border border-slate-100"
                   >
-                    {Diff.diffWords(inputText, optimizedText).map((part, index) => (
-                      <span 
-                        key={index} 
-                        className={part.added ? "bg-emerald-100 text-emerald-900 rounded-sm px-0.5" : part.removed ? "hidden" : ""}
-                      >
-                        {part.value}
-                      </span>
-                    ))}
+                    {optimizedText}
                   </motion.div>
                 </div>
               )}
