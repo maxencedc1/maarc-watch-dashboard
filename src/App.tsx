@@ -25,10 +25,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import * as Diff from 'diff';
 import { Cartographie } from './components/Cartographie';
+import { NotePage } from './components/NotePage';
 import { IndicesDashboard } from './components/Indices';
 
 // --- Types ---
-type Page = 'correcteur' | 'cartographie' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
+type Page = 'correcteur' | 'cartographie' | 'note' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
 
 interface CorrectionResult {
   errors?: string[];
@@ -146,6 +147,7 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
   const navItems: { id: Page; label: string; icon?: any; dropdownItems?: { id: Page; label: string }[] }[] = [
     { id: 'correcteur', label: 'Correcteur' },
     { id: 'cartographie', label: 'Cartographie' },
+    { id: 'note', label: 'Note' },
     { 
       id: 'indices', 
       label: 'Indices', 
@@ -232,7 +234,18 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
             className="h-8 w-auto"
             referrerPolicy="no-referrer"
             onError={(e) => {
-              e.currentTarget.src = "https://picsum.photos/seed/maarc/200/60";
+              e.currentTarget.style.display = 'none';
+              const parent = e.currentTarget.parentElement;
+              if (parent && !parent.querySelector('.maarc-fallback')) {
+                const fallback = document.createElement('div');
+                fallback.className = 'maarc-fallback flex items-center space-x-2';
+                fallback.innerHTML = `
+                  <div class="w-6 h-6 bg-[#1C1C1C] rounded-md flex items-center justify-center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBC33C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  </div>
+                `;
+                parent.appendChild(fallback);
+              }
             }}
           />
         </a>
@@ -558,6 +571,7 @@ export default function App() {
           >
             {currentPage === 'correcteur' && <CorrecteurPage />}
             {currentPage === 'cartographie' && <Cartographie />}
+            {currentPage === 'note' && <NotePage />}
             {currentPage === 'indices' && <PlaceholderPage title="Indices" />}
             {currentPage === 'indice-social' && <IndicesDashboard title="Indice social enrichi" />}
             {currentPage === 'indice-composite' && <IndicesDashboard title="Indice composite social" />}
