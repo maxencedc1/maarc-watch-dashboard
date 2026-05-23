@@ -25,11 +25,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import * as Diff from 'diff';
 import { Cartographie } from './components/Cartographie';
-import { NotePage } from './components/NotePage';
 import { IndicesDashboard } from './components/Indices';
 
 // --- Types ---
-type Page = 'correcteur' | 'cartographie' | 'note' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
+type Page = 'correcteur' | 'cartographie' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
 
 interface CorrectionResult {
   errors?: string[];
@@ -41,7 +40,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 async function getCorrections(text: string): Promise<string[]> {
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: `Texte de l'utilisateur : "${text}"`,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
@@ -107,7 +106,7 @@ Produis directement le texte reformulé sans aucune introduction, conclusion ou 
   }
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.5-flash",
     contents: `Texte de l'utilisateur : "${text}"`,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
@@ -147,7 +146,6 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
   const navItems: { id: Page; label: string; icon?: any; dropdownItems?: { id: Page; label: string }[] }[] = [
     { id: 'correcteur', label: 'Correcteur' },
     { id: 'cartographie', label: 'Cartographie' },
-    { id: 'note', label: 'Note' },
     { 
       id: 'indices', 
       label: 'Indices', 
@@ -571,7 +569,6 @@ export default function App() {
           >
             {currentPage === 'correcteur' && <CorrecteurPage />}
             {currentPage === 'cartographie' && <Cartographie />}
-            {currentPage === 'note' && <NotePage />}
             {currentPage === 'indices' && <PlaceholderPage title="Indices" />}
             {currentPage === 'indice-social' && <IndicesDashboard title="Indice social enrichi" />}
             {currentPage === 'indice-composite' && <IndicesDashboard title="Indice composite social" />}

@@ -876,7 +876,7 @@ export function Cartographie() {
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite-preview",
+        model: "gemini-3.5-flash",
         contents: `Voici une liste de publications d'un cluster spécifique dans un réseau social :\n\n${pubsText}\n\nFais une synthèse concise (environ 150-200 mots) de ce qui se dit dans ce cluster. Identifie les thèmes principaux, le ton général et les acteurs clés si possible. Réponds en français au format Markdown.`,
         config: {
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },

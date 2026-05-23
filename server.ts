@@ -1,79 +1,59 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
+import nodemailer from "nodemailer";
+import cors from "cors";
 import path from "path";
+import { fileURLToPath } from "url";
+import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
   app.use(express.json());
 
-  // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
-  });
+  // API Route for sending email
+  app.post("/api/send-email", async (req, res) => {
+    const { to, subject, html } = req.body;
 
-  // YouTube API Proxy
-  app.get("/api/youtube/video", async (req, res) => {
-    const { videoId } = req.query;
-    const apiKey = process.env.YOUTUBE_API_KEY;
-
-    if (!videoId) {
-      return res.status(400).json({ error: "videoId is required" });
-    }
-
-    if (!apiKey) {
-      console.error("YOUTUBE_API_KEY is missing in environment variables");
-      return res.status(500).json({ error: "YOUTUBE_API_KEY is not configured on the server." });
+    if (!to || !subject || !html) {
+      return res.status(400).json({ error: "Champs manquants (to, subject, html)" });
     }
 
     try {
-      const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${apiKey}`;
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      
-      if (data.error) {
-        console.error("YouTube API Video Error:", data.error);
-        return res.status(data.error.code || 500).json({ error: data.error.message });
-      }
-      
-      res.json(data);
-    } catch (error: any) {
-      console.error("Server Proxy Video Error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+      // Configuration du transporteur
+      // Ces variables doivent être définies dans les paramètres du projet (Secrets)
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || "587"),
+        secure: process.env.SMTP_PORT === "465", // true for 465, false for other ports
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
 
-  app.get("/api/youtube/comments", async (req, res) => {
-    const { videoId } = req.query;
-    const apiKey = process.env.YOUTUBE_API_KEY;
+      const info = await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"Analyse Opinion" <noreply@exemple.com>',
+        to,
+        subject,
+        html,
+      });
 
-    if (!videoId) {
-      return res.status(400).json({ error: "videoId is required" });
-    }
-
-    if (!apiKey) {
-      console.error("YOUTUBE_API_KEY is missing in environment variables");
-      return res.status(500).json({ error: "YOUTUBE_API_KEY is not configured on the server." });
-    }
-
-    try {
-      const apiUrl = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=50&key=${apiKey}`;
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-
-      if (data.error) {
-        console.error("YouTube API Comments Error:", data.error);
-        return res.status(data.error.code || 500).json({ error: data.error.message });
-      }
-
-      res.json(data);
-    } catch (error: any) {
-      console.error("Server Proxy Comments Error:", error);
-      res.status(500).json({ error: error.message });
+      console.log("Message envoyé: %s", info.messageId);
+      res.json({ success: true, messageId: info.messageId });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'email:", error);
+      res.status(500).json({ 
+        error: "Échec de l'envoi de l'email", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 
@@ -85,6 +65,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // Serving static files in production
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -93,7 +74,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Serveur démarré sur http://localhost:${PORT}`);
   });
 }
 
