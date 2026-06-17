@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
-import * as Diff from 'diff';
 import { Cartographie } from './components/Cartographie';
 import { IndicesDashboard } from './components/Indices';
 
