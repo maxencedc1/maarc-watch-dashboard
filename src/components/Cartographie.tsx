@@ -7,7 +7,7 @@ import louvain from 'graphology-communities-louvain';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import circular from 'graphology-layout/circular';
 import EdgeCurveProgram from "@sigma/edge-curve";
-import { Upload, Network, Maximize, Minimize, ZoomIn, ZoomOut, Download, Trash2, Info, Check, RefreshCw, X, Edit2, FileText, User, MessageSquare, Calendar, ExternalLink, Layers, Eye, EyeOff, Share2, Filter, Plus, Minus, Sparkles, TrendingUp, LayoutDashboard, ChevronDown, Zap, CheckCircle2 } from 'lucide-react';
+import { Upload, Network, ZoomIn, ZoomOut, Maximize, Trash2, RefreshCw, X, Edit2, MessageSquare, Calendar, ExternalLink, Layers, Eye, EyeOff, Plus, Minus, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
@@ -67,30 +67,10 @@ const SigmaController: React.FC<{
     Object.entries(communityGroups).forEach(([comm, nodes]) => {
       const sortedNodes = nodes
         .sort((a, b) => (graph.getNodeAttribute(b, 'size') || 0) - (graph.getNodeAttribute(a, 'size') || 0))
-        .slice(0, 10); // Limit to top 10 per community
+        .slice(0, 10);
       result[Number(comm)] = new Set(sortedNodes);
     });
     return result;
-  }, [graph]);
-
-  // Pre-calculate community adjacency to identify neighboring clusters
-  const communityAdjacency = useMemo(() => {
-    if (!graph || graph.order === 0) return {} as Record<number, Set<number>>;
-    const adjacency: Record<number, Set<number>> = {};
-    
-    graph.forEachEdge((edge, attr, source, target) => {
-      const sourceComm = graph.getNodeAttribute(source, 'community');
-      const targetComm = graph.getNodeAttribute(target, 'community');
-      if (sourceComm !== undefined && targetComm !== undefined && sourceComm !== targetComm) {
-        if (!adjacency[sourceComm]) adjacency[sourceComm] = new Set();
-        if (!adjacency[targetComm]) adjacency[targetComm] = new Set();
-        adjacency[sourceComm].add(targetComm);
-        adjacency[targetComm].add(sourceComm);
-        adjacency[sourceComm].add(targetComm);
-        adjacency[targetComm].add(sourceComm);
-      }
-    });
-    return adjacency;
   }, [graph]);
 
   // Calculate active context: visible nodes and top 10 labels when a node/community is active
@@ -135,25 +115,22 @@ const SigmaController: React.FC<{
         .slice(0, 10)
     );
 
-    // Ensure the active node itself is always labeled if it's not in the top 10
+    // Ensure the active node itself is always labeled
     if (activeNode) topLabels.add(activeNode);
 
     return { visibleNodes, topLabels, activeCommunity, connectedNeighborNodes };
   }, [graph, hoveredNode, selectedNode, selectedCommunity]);
 
   useEffect(() => {
-    // Handle click on node to highlight community
     const onClickNode = (e: { node: string }) => {
       const node = e.node;
       setSelectedNode((prev) => (prev === node ? null : node));
     };
 
-    // Handle click on stage to clear selection
     const onClickStage = () => {
       setSelectedNode(null);
     };
 
-    // Handle hover events
     const onEnterNode = (e: { node: string }) => {
       setHoveredNode(e.node);
     };
@@ -166,7 +143,7 @@ const SigmaController: React.FC<{
     sigma.on('enterNode', onEnterNode);
     sigma.on('leaveNode', onLeaveNode);
 
-    // Disable mouse wheel zoom
+    // Disable mouse wheel zoom and double-click zoom
     const mouseCaptor = sigma.getMouseCaptor();
     const preventWheel = (e: any) => {
       if (e.original) {
@@ -251,7 +228,7 @@ const SigmaController: React.FC<{
           }
         } else {
           res.label = "";
-          res.color = "#f1f5f9"; // Very light gray for faded nodes
+          res.color = "#f1f5f9";
           res.opacity = 0.05;
           res.labelColor = "rgba(0, 0, 0, 0.02)";
         }
@@ -289,15 +266,9 @@ const SigmaController: React.FC<{
 
       if (activeContext) {
         const { activeCommunity, visibleNodes } = activeContext;
-        const source = graph.source(edge);
-        const target = graph.target(edge);
-        const sourceComm = graph.getNodeAttribute(source, 'community');
-        const targetComm = graph.getNodeAttribute(target, 'community');
-        
         const isInternal = sourceComm === activeCommunity && targetComm === activeCommunity;
         const isToVisibleNeighbor = (sourceComm === activeCommunity && visibleNodes.has(target)) ||
                                     (targetComm === activeCommunity && visibleNodes.has(source));
-        const activeNode = hoveredNode || selectedNode;
         const isConnectedToActive = source === activeNode || target === activeNode;
 
         if (isConnectedToActive || isInternal || isToVisibleNeighbor) {
@@ -311,7 +282,7 @@ const SigmaController: React.FC<{
         }
       } else {
         res.color = data.color;
-        res.opacity = 0.04; // Even fainter edges by default
+        res.opacity = 0.04;
         res.size = data.size;
       }
       return res;
@@ -324,11 +295,8 @@ const SigmaController: React.FC<{
     const container = sigma.getContainer();
     if (!container) return;
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        console.log("Sigma container size changed:", entry.contentRect.width, "x", entry.contentRect.height);
-        sigma.refresh();
-      }
+    const observer = new ResizeObserver(() => {
+      sigma.refresh();
     });
 
     observer.observe(container);
@@ -337,26 +305,15 @@ const SigmaController: React.FC<{
 
   useEffect(() => {
     if (graph && graph.order > 0) {
-      console.log("SigmaController: Loading graph with", graph.order, "nodes");
       loadGraph(graph);
       
-      // Give Sigma a moment to process the layout before centering
       const timeout = setTimeout(() => {
-        const dims = sigma.getDimensions();
-        const rect = sigma.getContainer()?.getBoundingClientRect();
-        console.log("Sigma dimensions during reset:", dims, "Rect:", rect, "Window:", { w: window.innerWidth, h: window.innerHeight }, "DOffH:", document.documentElement.offsetHeight);
         sigma.refresh();
-        // Try to reset camera to fit all nodes
         try {
-          // Force a camera reset to the center of the graph bounds
-          console.log("SigmaController: Resetting camera");
           sigma.getCamera().animatedReset({ duration: 800 });
         } catch (e) {
-          console.error("Camera reset failed", e);
           sigma.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1, angle: 0 });
         }
-        
-        // Second refresh to be sure
         setTimeout(() => sigma.refresh(), 100);
       }, 800);
       
@@ -411,7 +368,6 @@ const Legend: React.FC<{
       if (next.has(id)) {
         next.delete(id);
       } else {
-        // Prevent hiding all communities
         if (next.size < communities.length - 1) {
           next.add(id);
         }
@@ -520,14 +476,8 @@ const GraphControls: React.FC<{
 }> = ({ nodeSizeMultiplier, setNodeSizeMultiplier }) => {
   const sigma = useSigma();
 
-  const zoomIn = () => {
-    sigma.getCamera().animatedZoom(1.5);
-  };
-
-  const zoomOut = () => {
-    sigma.getCamera().animatedZoom(0.6);
-  };
-
+  const zoomIn = () => sigma.getCamera().animatedZoom(1.5);
+  const zoomOut = () => sigma.getCamera().animatedZoom(0.6);
   const resetView = () => {
     try {
       sigma.getCamera().animatedReset({ duration: 800 });
@@ -538,32 +488,19 @@ const GraphControls: React.FC<{
 
   return (
     <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-3">
-      {/* Zoom Controls */}
       <div 
         style={{ backgroundColor: '#FBC33C' }}
         className="rounded-2xl shadow-2xl flex flex-col items-center justify-between w-[52px] h-[140px] py-1"
       >
-        <button 
-          onClick={zoomIn}
-          className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" 
-          title="Zoom In"
-        >
+        <button onClick={zoomIn} className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" title="Zoom In">
           <ZoomIn size={20} />
         </button>
         <div className="w-8 h-px bg-white/40" />
-        <button 
-          onClick={zoomOut}
-          className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" 
-          title="Zoom Out"
-        >
+        <button onClick={zoomOut} className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" title="Zoom Out">
           <ZoomOut size={20} />
         </button>
         <div className="w-8 h-px bg-white/40" />
-        <button 
-          onClick={resetView}
-          className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" 
-          title="Reset View"
-        >
+        <button onClick={resetView} className="p-2 hover:bg-white/20 rounded-2xl text-slate-900 transition-colors" title="Reset View">
           <Maximize size={20} />
         </button>
       </div>
@@ -578,7 +515,6 @@ const TopRightControls: React.FC<{
 }> = ({ nodeSizeMultiplier, setNodeSizeMultiplier }) => {
   return (
     <div className="absolute top-4 right-4 z-10 flex flex-col items-center gap-3">
-      {/* Node Size Control */}
       <div className="bg-white/90 backdrop-blur-sm p-2 rounded-2xl border border-slate-200 shadow-xl flex flex-col items-center gap-1 w-[52px]">
         <div className="text-[7px] font-black text-slate-400 uppercase tracking-tighter text-center leading-none mb-1">Taille</div>
         <button 
@@ -604,12 +540,10 @@ const TopRightControls: React.FC<{
 export function Cartographie() {
   const [graph, setGraph] = useState<Graph | null>(null);
   const [graphId, setGraphId] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<{ nodes: number; edges: number; clusters: number } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [communityNames, setCommunityNames] = useState<Record<number, string>>({});
-  const [editingCommunity, setEditingCommunity] = useState<number | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [nodeSizeMultiplier, setNodeSizeMultiplier] = useState(1);
@@ -623,21 +557,6 @@ export function Cartographie() {
   const [isGexfDragging, setIsGexfDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    // Debug log to check container height
-    const checkHeight = () => {
-      const container = document.querySelector('.sigma-container');
-      if (container) {
-        const rect = container.getBoundingClientRect();
-        console.log(`Sigma container height:`, rect.height, "width:", rect.width);
-      }
-    };
-    
-    checkHeight();
-    const timer = setTimeout(checkHeight, 1000);
-    return () => clearTimeout(timer);
-  }, [graph]);
 
   const finalizeGraph = useCallback((newGraph: Graph) => {
     try {
@@ -667,7 +586,7 @@ export function Cartographie() {
         getEdgeWeight: (edge) => newGraph.getEdgeAttribute(edge, 'weight') || 1
       });
 
-      // 3. Sort communities by size (number of nodes)
+      // 3. Sort communities by size
       const communityCounts: Record<number, number> = {};
       Object.values(communities).forEach(c => {
         communityCounts[c] = (communityCounts[c] || 0) + 1;
@@ -700,32 +619,30 @@ export function Cartographie() {
         newGraph.setNodeAttribute(node, 'labelSize', labelSize);
       });
 
-      // 4. Set edge colors and sizes (with reduced opacity)
+      // 4. Set edge colors and sizes
       newGraph.forEachEdge((edge, attr, source, target) => {
         const sourceColor = newGraph.getNodeAttribute(source, 'color');
-        // Add opacity to the hex color (e.g., B2 for ~70% opacity)
         const colorWithOpacity = sourceColor.length === 7 ? `${sourceColor}B2` : sourceColor;
         newGraph.setEdgeAttribute(edge, 'color', colorWithOpacity);
         const weight = attr.weight || 1;
-        // Vary size more noticeably based on weight: base 0.2, max 2.5
         newGraph.setEdgeAttribute(edge, 'size', Math.max(0.2, Math.min(0.2 + (weight * 0.4), 2.5)));
       });
 
-      // 5. Run ForceAtlas2 layout optimized for cluster separation (Visibrain-style)
+      // 5. Run ForceAtlas2 layout
       forceAtlas2.assign(newGraph, {
         iterations: 2000,
         settings: {
-          gravity: 1.2, // Increased gravity to pull clusters together and reduce empty space
-          scalingRatio: 8.0, // Balanced scaling to separate clusters without creating huge gaps
-          strongGravityMode: true, // Strong gravity helps in forming more cohesive global structure
+          gravity: 1.2,
+          scalingRatio: 8.0,
+          strongGravityMode: true,
           barnesHutOptimize: true,
-          linLogMode: true, // Essential for the "cloud" clustering effect
-          adjustSizes: true, // Prevent node overlap
-          outboundAttractionDistribution: true // Hubs attract more, pushing them to cluster centers
+          linLogMode: true,
+          adjustSizes: true,
+          outboundAttractionDistribution: true
         }
       });
 
-      // 5. Final check for bounds
+      // 6. Final bounds check
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       newGraph.forEachNode((node, attr) => {
         minX = Math.min(minX, attr.x);
@@ -733,8 +650,6 @@ export function Cartographie() {
         minY = Math.min(minY, attr.y);
         maxY = Math.max(maxY, attr.y);
       });
-      setGraphId(prev => prev + 1);
-      setGraph(newGraph);
 
       const width = maxX - minX;
       const height = maxY - minY;
@@ -744,7 +659,6 @@ export function Cartographie() {
       }
 
       setGraphId(prev => prev + 1);
-
       setGraph(newGraph);
       setStats({
         nodes: newGraph.order,
@@ -762,7 +676,6 @@ export function Cartographie() {
       setSynthesis("");
       setIsProcessing(false);
     } catch (err) {
-      console.error('Error finalizing graph:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors du traitement du graphe.');
       setIsProcessing(false);
     }
@@ -777,7 +690,6 @@ export function Cartographie() {
         const newGraph = parse(Graph, content);
         finalizeGraph(newGraph);
       } catch (err) {
-        console.error('Error parsing GEXF:', err);
         setError(err instanceof Error ? err.message : 'Erreur lors de la lecture du fichier GEXF.');
         setIsProcessing(false);
       }
@@ -796,7 +708,6 @@ export function Cartographie() {
           const data = results.data as any[];
           if (data.length === 0) throw new Error('Le fichier CSV est vide.');
 
-          // Mapping Talkwalker columns to our Publication interface
           const newPubs: Publication[] = data.map((row, index) => {
             const rawAuthor = row['Id'] || row['screen name'] || row['extra_author_attributes.name'] || row['Author'] || 'Inconnu';
             return {
@@ -831,10 +742,7 @@ export function Cartographie() {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        processCsv(content);
-      };
+      reader.onload = (e) => processCsv(e.target?.result as string);
       reader.readAsText(file);
     }
   };
@@ -846,7 +754,6 @@ export function Cartographie() {
     setSynthesis("");
     
     try {
-      // Get nodes in this community
       const communityNodes = new Set<string>();
       graph.forEachNode((node, attr) => {
         if (attr.community === communityId) {
@@ -854,10 +761,9 @@ export function Cartographie() {
         }
       });
       
-      // Filter publications by these authors
       const communityPubs = publications.filter(pub => 
         communityNodes.has(pub.normalizedAuthor)
-      ).slice(0, 50); // Limit to top 50 for context
+      ).slice(0, 50);
       
       if (communityPubs.length === 0) {
         setSynthesis("Aucune publication trouvée pour ce Cluster pour générer une synthèse.");
@@ -868,11 +774,8 @@ export function Cartographie() {
       
       const pubsText = communityPubs.map(p => `- ${p.author}: ${p.content}`).join('\n');
       
-      // Initialize Gemini API
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Clé API Gemini manquante. Veuillez configurer votre clé dans les paramètres.");
-      }
+      if (!apiKey) throw new Error("Clé API Gemini manquante.");
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
@@ -887,7 +790,6 @@ export function Cartographie() {
       setSynthesis(response.text || "Erreur lors de la génération de la synthèse.");
       setIsSynthesisExpanded(true);
     } catch (err: any) {
-      console.error("Synthesis error:", err);
       setSynthesis(`Une erreur est survenue lors de la génération de la synthèse : ${err.message}`);
       setIsSynthesisExpanded(true);
     } finally {
@@ -901,10 +803,7 @@ export function Cartographie() {
     const file = e.dataTransfer.files[0];
     if (file && file.name.endsWith('.csv')) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        processCsv(content);
-      };
+      reader.onload = (event) => processCsv(event.target?.result as string);
       reader.readAsText(file);
     }
   };
@@ -915,10 +814,7 @@ export function Cartographie() {
     const file = e.dataTransfer.files[0];
     if (file && (file.name.endsWith('.gexf') || file.type === 'text/xml')) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        processGexf(content);
-      };
+      reader.onload = (event) => processGexf(event.target?.result as string);
       reader.readAsText(file);
     }
   };
@@ -927,36 +823,8 @@ export function Cartographie() {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        processGexf(content);
-      };
+      reader.onload = (e) => processGexf(e.target?.result as string);
       reader.readAsText(file);
-    }
-  };
-
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const onDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.gexf') || file.type === 'text/xml')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        processGexf(content);
-      };
-      reader.readAsText(file);
-    } else {
-      setError('Veuillez déposer un fichier au format .gexf');
     }
   };
 
@@ -965,7 +833,6 @@ export function Cartographie() {
     setStats(null);
     setError(null);
     setCommunityNames({});
-    setEditingCommunity(null);
     setPublications([]);
     setNodeSizeMultiplier(1);
     setHiddenCommunities(new Set());
@@ -1026,7 +893,7 @@ export function Cartographie() {
         </div>
 
         <div className="flex items-center space-x-6">
-          {/* Compact GEXF Upload */}
+          {/* GEXF Upload */}
           <div className="h-12 bg-white border border-gray-100 rounded-2xl px-5 flex items-center space-x-3 shadow-sm relative group cursor-pointer">
             <div className="flex flex-col items-end">
               <span className="text-[10px] font-black text-slate-300 tracking-wider uppercase">Réseau GEXF</span>
@@ -1037,7 +904,7 @@ export function Cartographie() {
             <button onClick={() => fileInputRef.current?.click()} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
           </div>
 
-          {/* Compact CSV Upload */}
+          {/* CSV Upload */}
           <div className="h-12 bg-white border border-gray-100 rounded-2xl px-5 flex items-center space-x-3 shadow-sm relative group cursor-pointer">
             <div className="flex flex-col items-end">
               <span className="text-[10px] font-black text-slate-300 tracking-wider uppercase">Publications CSV</span>
@@ -1063,7 +930,7 @@ export function Cartographie() {
       </header>
 
       <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
-        {/* Left Column: Map (Expanded) */}
+        {/* Left Column: Map */}
         <div className="col-span-8 relative bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex flex-col min-h-0 h-[500px]">
           {!graph ? (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
@@ -1151,7 +1018,7 @@ export function Cartographie() {
           )}
         </div>
 
-        {/* Right Column: Publications (Styled) */}
+        {/* Right Column: Publications */}
         <div className="col-span-4 bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 flex flex-col min-h-0 h-[500px] overflow-hidden">
           <div className="p-5 bg-white shrink-0">
             <div className="flex items-center justify-between mb-3">
@@ -1174,8 +1041,8 @@ export function Cartographie() {
                   onChange={(e) => {
                     const val = e.target.value === "" ? null : Number(e.target.value);
                     setSelectedCommunity(val);
-                    setSelectedNode(null); // Clear node selection when changing community
-                    setSynthesis(""); // Clear synthesis when changing community
+                    setSelectedNode(null);
+                    setSynthesis("");
                     setIsSynthesisExpanded(false);
                   }}
                 >
@@ -1201,7 +1068,7 @@ export function Cartographie() {
                 </button>
               </div>
 
-              {/* AI Synthesis Accordion (Moved here) */}
+              {/* AI Synthesis Accordion */}
               <AnimatePresence>
                 {(synthesis || isSynthesizing) && (
                   <motion.div 
@@ -1215,9 +1082,9 @@ export function Cartographie() {
                       className="w-full px-4 py-2.5 flex items-center justify-between text-black hover:bg-black/5 transition-colors"
                     >
                       <div className="flex items-center gap-2">
-                      <Sparkles size={14} className="text-black" />
-                      <span className="text-[9px] font-black uppercase tracking-widest">Synthèse IA {selectedCommunity !== null ? `(${communityNames[selectedCommunity]})` : ''}</span>
-                    </div>
+                        <Sparkles size={14} className="text-black" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Synthèse IA {selectedCommunity !== null ? `(${communityNames[selectedCommunity]})` : ''}</span>
+                      </div>
                       {isSynthesisExpanded ? <Minus size={14} className="text-black" /> : <Plus size={14} className="text-black" />}
                     </button>
                     
@@ -1326,7 +1193,6 @@ export function Cartographie() {
                         : 'border-slate-100 bg-slate-50 hover:border-slate-200'
                     }`}
                     onClick={() => {
-                      // Select node in graph by author name
                       if (graph) {
                         const normAuthor = pub.normalizedAuthor;
                         const nodeId = graph.nodes().find(n => {
@@ -1335,7 +1201,6 @@ export function Cartographie() {
                           const nLabel = String(attr.label || '').toLowerCase().trim().replace(/^@/, '');
                           const nDisplay = String(attr.displayName || '').toLowerCase().trim().replace(/^@/, '');
                           const nScreen = String(attr.screen_name || '').toLowerCase().trim().replace(/^@/, '');
-                          
                           return nId === normAuthor || nLabel === normAuthor || nDisplay === normAuthor || nScreen === normAuthor;
                         });
                         if (nodeId) setSelectedNode(nodeId);
@@ -1408,36 +1273,16 @@ export function Cartographie() {
         </div>
       </div>
 
-      {/* Community Analysis Section Removed */}
-
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #e2e8f0;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #cbd5e1;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
         
-        .custom-scrollbar-light::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar-light::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar-light::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
-        }
+        .custom-scrollbar-light::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar-light::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar-light::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar-light::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}</style>
     </div>
   );

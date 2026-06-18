@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
-  X, 
   Facebook, 
   Instagram, 
   Linkedin, 
@@ -9,14 +8,10 @@ import {
   Music2,
   Calculator,
   TrendingUp, 
-  Eye, 
   MessageSquare, 
-  Heart, 
   Share2,
   Info,
-  Play,
   RotateCcw,
-  Building2,
   Trash2
 } from 'lucide-react';
 
@@ -104,9 +99,7 @@ export function IndicesDashboard({ title = "Score de visibilité sociale enrichi
   const calculateScore = () => {
     setIsCalculating(true);
     
-    // Simulate a brief calculation delay for UX
     setTimeout(() => {
-      // Calculate cumulative totals
       let totalPosts = 0;
       let totalInteractions = 0;
       let totalReach = 0;
@@ -118,15 +111,12 @@ export function IndicesDashboard({ title = "Score de visibilité sociale enrichi
         totalReach += p.reach;
       });
 
-      // Calculate normalized scores (capped at 100) using state params
       const scoreM = Math.min(100, (totalPosts / params.mpMax) * 100);
       const scoreE = Math.min(100, (totalInteractions / params.eMax) * 100);
       const scoreP = Math.min(100, (totalReach / params.pMax) * 100);
 
-      // Final Visibility Score using state params
       const finalScore = (params.alpha * scoreM) + (params.beta * scoreE) + (params.gamma * scoreP);
 
-      // Update state
       setTotals({ posts: totalPosts, interactions: totalInteractions, reach: totalReach });
       setScore(parseFloat(finalScore.toFixed(2)));
       setIsCalculating(false);
@@ -134,7 +124,7 @@ export function IndicesDashboard({ title = "Score de visibilité sociale enrichi
   };
 
   const platformConfigs = [
-    { id: 'twitter', name: 'X', icon: X, color: 'text-secondary', bg: 'bg-slate-100' },
+    { id: 'twitter', name: 'X', icon: MessageSquare, color: 'text-secondary', bg: 'bg-slate-100' },
     { id: 'facebook', name: 'Facebook', icon: Facebook, color: 'text-blue-600', bg: 'bg-blue-50' },
     { id: 'instagram', name: 'Instagram', icon: Instagram, color: 'text-pink-600', bg: 'bg-pink-50' },
     { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'text-blue-700', bg: 'bg-blue-50' },
@@ -235,7 +225,7 @@ export function IndicesDashboard({ title = "Score de visibilité sociale enrichi
               >
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center">
-                    <Eye className="w-3.5 h-3.5 text-4" />
+                    <Share2 className="w-3.5 h-3.5 text-4" />
                   </div>
                   <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-secondary">Posts</h3>
                 </div>

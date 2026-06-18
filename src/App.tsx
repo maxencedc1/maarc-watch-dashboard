@@ -3,36 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { 
-  Search, 
   LayoutDashboard, 
-  Map, 
-  BarChart3, 
   FileText, 
   CheckCircle2, 
   Sparkles, 
   Loader2,
-  AlertCircle,
-  ArrowRight,
   Shield,
-  Lightbulb,
   ChevronDown,
-  Zap,
-  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { Cartographie } from './components/Cartographie';
 import { IndicesDashboard } from './components/Indices';
 
 // --- Types ---
 type Page = 'correcteur' | 'cartographie' | 'indices' | 'indice-social' | 'indice-composite' | 'indice-reputationnel';
-
-interface CorrectionResult {
-  errors?: string[];
-  optimizedText?: string;
-}
 
 // --- Gemini Service ---
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -123,13 +110,13 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
   const [activeDropdown, setActiveDropdown] = useState<Page | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
+  useState(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  });
 
   const handleMouseEnter = (id: Page) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -139,7 +126,7 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
   const handleMouseLeave = () => {
     timeoutRef.current = setTimeout(() => {
       setActiveDropdown(null);
-    }, 300); // 300ms grace period
+    }, 300);
   };
 
   const navItems: { id: Page; label: string; icon?: any; dropdownItems?: { id: Page; label: string }[] }[] = [
@@ -170,7 +157,7 @@ const TopBar = ({ currentPage, setCurrentPage }: { currentPage: Page, setCurrent
         {navItems.map((item) => (
           <div 
             key={item.id} 
-            className="relative py-4" // Added padding to create a bridge between button and dropdown
+            className="relative py-4"
             onMouseEnter={() => item.dropdownItems && handleMouseEnter(item.id)}
             onMouseLeave={() => item.dropdownItems && handleMouseLeave()}
           >
@@ -257,8 +244,6 @@ const CorrecteurPage = () => {
   const [isAnalyzingSuggestions, setIsAnalyzingSuggestions] = useState(false);
   const [errors, setErrors] = useState<string[] | null>(null);
   const [optimizedText, setOptimizedText] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
 
   const handleGetCorrections = async () => {
     if (!inputText.trim()) return;
@@ -294,45 +279,6 @@ const CorrecteurPage = () => {
     setInputText('');
     setErrors(null);
     setOptimizedText(null);
-  };
-
-  const syncScroll = () => {
-    if (textareaRef.current && highlightRef.current) {
-      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
-    }
-  };
-
-  // Function to highlight errors in the input text
-  const renderHighlightedText = () => {
-    if (!errors || errors.length === 0) return inputText;
-
-    // Extract the "segment de texte erroné" from the errors
-    // Format is: "segment" => suggestion
-    const errorSegments = errors
-      .map(err => {
-        const match = err.match(/^"(.*?)"\s*=>/);
-        return match ? match[1] : null;
-      })
-      .filter((segment): segment is string => segment !== null && segment.length > 0);
-
-    if (errorSegments.length === 0) return inputText;
-
-    // Sort segments by length descending to avoid partial matches inside longer segments
-    const sortedSegments = [...new Set(errorSegments)].sort((a, b) => b.length - a.length);
-    
-    // Escape special characters for regex
-    const escapedSegments = sortedSegments.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const regex = new RegExp(`(${escapedSegments.join('|')})`, 'gi');
-
-    const parts = inputText.split(regex);
-    
-    return parts.map((part, i) => {
-      const isError = sortedSegments.some(s => s.toLowerCase() === part.toLowerCase());
-      if (isError) {
-        return <mark key={i} className="bg-red-500/20 text-transparent rounded-sm border-b-2 border-red-500/50">{part}</mark>;
-      }
-      return part;
-    });
   };
 
   return (
@@ -378,12 +324,9 @@ const CorrecteurPage = () => {
             <h2 className="text-[12px] font-black text-slate-400 tracking-widest uppercase">
               Votre texte à vérifier
             </h2>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span className="text-[11px] font-bold text-slate-300">{inputText.length}</span>
-              </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span className="text-[11px] font-bold text-slate-300">{inputText.length}</span>
             </div>
           </div>
 
@@ -396,18 +339,9 @@ const CorrecteurPage = () => {
                 </p>
               </div>
             )}
-            <div 
-              ref={highlightRef}
-              className="absolute inset-0 p-8 pointer-events-none text-transparent leading-relaxed text-[16px] font-sans font-medium whitespace-pre-wrap break-words overflow-auto"
-              aria-hidden="true"
-            >
-              {renderHighlightedText()}
-            </div>
             <textarea
-              ref={textareaRef}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              onScroll={syncScroll}
               className="absolute inset-0 w-full h-full p-8 resize-none focus:outline-none bg-transparent text-secondary/80 caret-secondary leading-relaxed text-[16px] font-sans font-medium whitespace-pre-wrap break-words overflow-auto"
             />
           </div>
@@ -434,7 +368,6 @@ const CorrecteurPage = () => {
 
         {/* Results Section */}
         <div className="flex flex-col">
-          {/* Correcteur Box */}
           <div className="bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex flex-col h-[500px]">
             <div className="h-14 px-6 border-b border-[var(--color-5)]/10 flex items-center space-x-2 bg-[var(--color-5)]/5">
               <div className="w-6 h-6 bg-[var(--color-5)]/10 rounded-lg flex items-center justify-center">
@@ -524,23 +457,6 @@ const CorrecteurPage = () => {
   );
 };
 
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="max-w-[1800px] mx-auto pt-32 pb-2 px-8 text-center">
-    <div className="w-24 h-24 bg-white shadow-2xl shadow-secondary/10 rounded-3xl flex items-center justify-center mx-auto mb-10 relative group overflow-hidden border border-slate-100">
-      <div className="absolute -inset-4 bg-gradient-to-tr from-primary/20 via-transparent to-primary/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-1000" />
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <LayoutDashboard className="w-10 h-10 relative z-10 drop-shadow-sm group-hover:scale-110 transition-transform duration-500" style={{ stroke: "url(#maarc-gradient)" }} />
-    </div>
-    <h1 className="text-4xl font-black text-secondary uppercase tracking-tighter mb-4">
-      {title} <span className="text-primary">Maarc</span>
-    </h1>
-    <div className="w-20 h-1.5 bg-primary mx-auto rounded-full mb-8" />
-    <p className="text-slate-400 max-w-md mx-auto font-bold text-lg leading-relaxed">
-      Cette section est en cours de développement pour l'usage interne de l'agence Maarc.
-    </p>
-  </div>
-);
-
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('correcteur');
 
@@ -568,7 +484,6 @@ export default function App() {
           >
             {currentPage === 'correcteur' && <CorrecteurPage />}
             {currentPage === 'cartographie' && <Cartographie />}
-            {currentPage === 'indices' && <PlaceholderPage title="Indices" />}
             {currentPage === 'indice-social' && <IndicesDashboard title="Indice social enrichi" />}
             {currentPage === 'indice-composite' && <IndicesDashboard title="Indice composite social" />}
             {currentPage === 'indice-reputationnel' && <IndicesDashboard title="Indice réputationnel" />}
@@ -582,4 +497,3 @@ export default function App() {
     </div>
   );
 }
-
